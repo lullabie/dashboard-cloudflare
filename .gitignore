@@ -1,0 +1,35 @@
+# Local dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+.worktrees/
+
+# Credentials and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private runtime data and local evidence
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+private-data/
+exports/
+backups/
+production-screenshots/
+
+# Browser test outputs require manual privacy review before publication
+output/playwright/
+playwright-report/
+test-results/
+
+# Operating system files
+.DS_Store
+Thumbs.db

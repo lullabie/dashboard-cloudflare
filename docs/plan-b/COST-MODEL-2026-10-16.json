@@ -1,0 +1,84 @@
+{
+  "checkedDate": "2026-10-16",
+  "status": "Illustrative arithmetic only; not a workload benchmark or verified account capacity.",
+  "quotaScope": "Account-wide; other projects and test runs also count.",
+  "assumptions": {
+    "opensPerDay": 20,
+    "apiCallsPerOpen": 6,
+    "savesPerDay": 40,
+    "callsPerSave": 2,
+    "cronMinutes": 5,
+    "cronInvocationsPerDay": 288,
+    "conditionalFeedsPerTick": 1,
+    "maxCandidateItemsPerFeed": 25,
+    "assumedWriteAmplification": 3,
+    "checkpointRowsWrittenPerTick": 2,
+    "assumedRowsWrittenPerSave": 12
+  },
+  "scenarios": [
+    {
+      "name": "Typical day",
+      "tabs": 1,
+      "pollHours": 2,
+      "pollSeconds": 60,
+      "estimatedInvocations": 608,
+      "shareOf100kDailyLimit": 0.00608
+    },
+    {
+      "name": "One tab open all day",
+      "tabs": 1,
+      "pollHours": 24,
+      "pollSeconds": 60,
+      "estimatedInvocations": 1928,
+      "shareOf100kDailyLimit": 0.01928
+    },
+    {
+      "name": "Ten tabs open all day",
+      "tabs": 10,
+      "pollHours": 24,
+      "pollSeconds": 60,
+      "estimatedInvocations": 14888,
+      "shareOf100kDailyLimit": 0.14888
+    },
+    {
+      "name": "One tab polling every second",
+      "tabs": 1,
+      "pollHours": 24,
+      "pollSeconds": 1,
+      "estimatedInvocations": 86888,
+      "shareOf100kDailyLimit": 0.86888
+    },
+    {
+      "name": "Two tabs polling every second",
+      "tabs": 2,
+      "pollHours": 24,
+      "pollSeconds": 1,
+      "estimatedInvocations": 173288,
+      "shareOf100kDailyLimit": 1.73288
+    }
+  ],
+  "illustrativeRowsWritten": {
+    "feed": 21600,
+    "checkpoint": 576,
+    "saves": 480,
+    "total": 22656
+  },
+  "storage": {
+    "feedItems": 10000,
+    "bytesPerFeedItem": 3072,
+    "indexAndOverheadMultiplier": 2,
+    "feedBytes": 61440000,
+    "goalBytes": 1048576,
+    "historyReserveBytes": 5242880,
+    "receiptReserveBytes": 20971520,
+    "otherReserveBytes": 5242880,
+    "totalBytes": 93945856
+  },
+  "notEstablished": [
+    "CPU per API or parser invocation; must measure on Workers Free",
+    "Actual D1 rows_read/rows_written and batch/query counting",
+    "Actual account allowances, current use and any payment settings",
+    "Future provider pricing or uninterrupted uptime",
+    "Cron exact delivery or retry behavior"
+  ]
+}
