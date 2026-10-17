@@ -1,1 +1,61 @@
-IyBEYXNoYm9hcmQg4oCUIFByb2R1Y3QgUm9hZG1hcAoKRGF0ZTogMjAyNi0xMC0xNy4gQ29tcGFuaW9uIHRvIGRvY3MvQlVJTEQtUExBTi5tZCAoUjEgYnVpbGQgYmx1ZXByaW50KS4KQXVkaWVuY2U6IGFueW9uZSByZXZpZXdpbmcgdGhlIHByb2plY3Qg4oCUIHRoZSBmdWxsIHBpY3R1cmUsIG5vdCBqdXN0IHRoZSBjdXJyZW50IGJ1aWxkLgoKIyMgUHJvZHVjdAoKIkRhc2hib2FyZCIg4oCUIEpvbmF0aGFuJ3MgcHJpdmF0ZSBzaW5nbGUtdXNlciBwZXJzb25hbCBkYXNoYm9hcmQuIENhbmFkYS1mb2N1c2VkIHRocm91Z2hvdXQuClRpdGxlOiBEYXNoYm9hcmQuIEJsYWNrIHN1cmZhY2VzLCBsaW1lIGFjY2VudHMuIE1pbmltYWxpc3QsIHZpc3VhbCwgY29tcGFjdCwgZXhwYW5kYWJsZS4KRXhwYW5kZWQgY2FyZHMgc2hvdyBtZWFzdXJlbWVudHMsIGZyZXNobmVzcywgc291cmNlLCBjb25uZWN0aW9uIHN0YXR1cy4gTW9iaWxlICsga2V5Ym9hcmQgcmVxdWlyZWQuClJlcXVpcmVkIGFkZGl0aW9uYWwgc2VydmljZSBjb3N0OiAkMC4KCiMjIEhhcmQgcnVsZXMgKGFsbCBwaGFzZXMpCgotIFNoaXBzIGVtcHR5IG9mIHByaXZhdGUgZGF0YTsgdGhlIG93bmVyIGVudGVycyBoaXMgb3duIHJlY29yZHMuCi0gT25seSBwdWJsaWMgZmVlZHMgdXBkYXRlIGF1dG9tYXRpY2FsbHkuIFByaXZhdGUgaW5nZXN0aW9uIG5lZWRzIGV4cGxpY2l0IGF1dGhvcml6YXRpb24uCi0gWmVybyBwZXJzb25hbCBjb250ZXh0IHRocm91Z2ggQ2hhdEdQVCwgR2VtaW5pLCBKdWxlcywgb3IgYW55IHRoaXJkLXBhcnR5IHJlbGF5LgotIFdlZWtseSBmaW5kaW5ncyBhcmUgcHJvcG9zYWxzIHVudGlsIHRoZSBvd25lciBjb25maXJtcyB0aGVtIOKAlCBuZXZlciBzaWxlbnRseSBiZWNvbWUgdGFza3MuCi0gTm8gdHJhZGUgZXhlY3V0aW9uLiBObyBpbnZlc3RtZW50IHJlc3VsdCBkZXNjcmliZWQgYXMgZ3VhcmFudGVlZC4KLSBIb25lc3QgZW1wdHksIHN0YWxlLCBvZmZsaW5lLCBhbmQgZXJyb3Igc3RhdGVzIGV2ZXJ5d2hlcmUuIE5ldmVyIGludmVudCBhY3Rpdml0eS4KLSBPbmUtY2xpY2sgSlNPTiBleHBvcnQvaW1wb3J0IGZyb20gZGF5IG9uZTsgYmFja3VwcyBiZWZvcmUgZmVhdHVyZXMuCgojIyBSMSDigJQgbm93IGJ1aWxkaW5nIChzZWUgZG9jcy9CVUlMRC1QTEFOLm1kKQoKV2Vla2VuZCAxOiBUb2RheSB2aWV3LCBnb2FscyBDUlVELCB0aHJlZSBjb3VudGRvd25zIChmZWUgMjAyNi0xMS0yNSwgdmlzYSBkb2NzIDIwMjYtMTItMTUsCmludGFrZSAyMDI3LTAxLTExLCBBbWVyaWNhL1Rvcm9udG8gcGlubmVkKSwgSlNPTiBleHBvcnQvaW1wb3J0LCBibGFjay9saW1lIHRoZW1lLCBtb2JpbGUuCldlZWtlbmQgMjogZGVhZGxpbmUgcmFkYXIsIEJhbmsgb2YgQ2FuYWRhIGluZGljYXRvciB0aWxlcywgY2hlY2tsaXN0IHByb2dyZXNzIHJpbmdzLCBwb2xpc2guClZpc3VhbCBleHBsYWluZXJzIGxvY2tlZCB0byBmb3VyIGl0ZW1zOiBjb3VudGRvd24gdGlsZXMsIHJhZGFyIGxpc3QsIGluZGljYXRvciB0aWxlcywgcHJvZ3Jlc3MgcmluZ3MuCgojIyBSMiDigJQgYWZ0ZXIgUjEgc2hpcHMgKG5vdCBzdGFydGVkKQoKLSBGdWxsIGRhaWx5IG9jY3VycmVuY2VzIGFuZCBhZGhlcmVuY2UgaGlzdG9yeSBmb3IgZ29hbHMgKHN0cmVha3MsIHRpbWVsaW5lcywgbWlzc2VkL2xhdGUgY2hlY2staW5zKS4KLSBNYXBzIOKAlCBwbGFjZXMgZnJvbSBvd25lciBpbnB1dCBvciBhdXRob3JpemVkIGV4dHJhY3Rpb24gKGNvbmZpcm0tYmVmb3JlLWFkZCksIHVuaXF1ZSBjb2xvcnMsCiAgdGltZWxpbmUgc2lkZWJhciwgZGlyZWN0aW9ucywgdHJhdmVsLWhpc3RvcnkgcmV2aWV3LiBDYW5hZGEtZm9jdXNlZC4KLSBDb2xsZWdlIHBvcnRhbCBpbnRlZ3JhdGlvbiDigJQgbXlDZW50ZW5uaWFsIHRpbWV0YWJsZSwgYXNzaWdubWVudHMsIGF0dGVuZGFuY2UsIGV4YW1zLCBmZWVzLAogIGNvdW50ZG93bnMuIEJhdGNoZWQgY2hlY2tzLCBzdG9wIG9uIHJpc2sgc2lnbmFsLiBOZXZlciBPdXRsb29rL2NvbGxlZ2UgZW1haWwuCi0gQ2FuYWRhIGpvYiBtYXRjaGluZyDigJQgSm9iIEJhbmsgKyBsYXdmdWwgQ2FuYWRpYW4gc291cmNlcywgcHJvYWN0aXZlIHByb2ZpbGUgbWF0Y2hpbmcsCiAgZ292ZXJubWVudCBvcGVuaW5ncywgcHJvdmluY2lhbC9Ub3JvbnRvL3JlbW90ZS4gQXBwbGljYXRpb25zIHN0YXkgYXBwcm92YWwtZ2F0ZWQuCi0gSW52ZXN0bWVudCBncmFwaHMgYW5kIGNvbXBhcmlzb25zIOKAlCB3YXRjaGxpc3RzLCB0cmFqZWN0b3J5IGdyYXBocywgc2lkZS1ieS1zaWRlLAogIGRlYWwtZmxvdy9lYXJuaW5ncy9NJkEgc2lnbmFscy4gTm8gZXhlY3V0aW9uLCBubyBndWFyYW50ZWVkLWdhaW4gZnJhbWluZy4KLSBOZXdzIGV4cGFuc2lvbiDigJQgZ2xvYmFsICsgQ2FuYWRpYW4sIHBlcm1pdHRlZCBoZWFkbGluZSBzb3VyY2VzLCBzb3VyY2UvZGF0ZS9saW5rL2V4Y2VycHQgY2FyZHMuCiAgTm8gZnVsbC1hcnRpY2xlIHNjcmFwaW5nLgotIEltbWlncmF0aW9uIOKAlCBDYW5hZGlhbiBwb2xpY3kvcHJvZ3JhbSB1cGRhdGVzLCBlbXBsb3llci9lbXBsb3llZSBjYXRlZ29yaWVzLgogIFByaXZhdGUgcmVsZXZhbmNlIG9ubHkgYWZ0ZXIgYXV0aG9yaXphdGlvbi4KLSBFY29ub215IOKAlCBpbmRpY2F0b3JzLCBiYW5raW5nIHVwZGF0ZXMsIHJhdGVzIHdpdGggc291cmNlIGFuZCBmcmVzaG5lc3MgZXZpZGVuY2UuCi0gSGFiaXRzIOKAlCBmaXRuZXNzIGFuZCBoZWFsdGggdHJhY2tpbmcsIG5vIHNjb3BlIGNyZWVwLgotIEF1dG9tYXRlZCBpbmdlc3Rpb24g4oCUIG9ubHkgd2hlbiBhdXRob3JpemVkIGFuZCBzYWZlIChmcm96ZW4gdW50aWwgYWZ0ZXIgMjAyNy0wMS0xMSBpbnRha2UpLgoKIyMgTGF0ZXIgLyBvcHRpb25hbAoKLSBBSSBhbmFseXNpcyBsYXllciwgY2xlYXJseSBzZXBhcmF0ZSBmcm9tIGNvcmUuIENvcmUgd29ya3Mgd2l0aCBBSSBjbG9zZWQuCiAgQUkgZmluZGluZ3MgbmV2ZXIgc2lsZW50bHkgY2hhbmdlIGNvbW1pdG1lbnRzIG9yIG1pbGVzdG9uZXMuCgojIyBLZXkgZGF0ZXMgKGRyaXZlIHRoZSBjb3VudGRvd25zKQoKLSBGZWUgYmFsYW5jZSBDQSQxLDI4OS44MSBkdWUgMjAyNi0xMS0yNS4gVmlzYS1kb2N1bWVudCB1cGxvYWQgZHVlIDIwMjYtMTItMTUuCi0gQ2VudGVubmlhbCBpbnRha2UgMjAyNy0wMS0xMS4gU3R1ZHkgcGVybWl0IGZpbGVkIDIwMjYtMTAtMDIuCgojIyBBSSBsYW5lcyAob3duZXItYXNzaWduZWQpCgotIENvZGV4IChDaGF0R1BUIFBsdXMpIOKAlCBjb2RlLiBKdWxlcyAoUkVTVCBBUEkpIOKAlCByZXBvIGJ1aWxkcy4gR2VtaW5pIFBybyDigJQgcmVzZWFyY2ggb25seS4K
+# Dashboard — Product Roadmap
+
+Date: 2026-10-17. Companion to docs/BUILD-PLAN.md (R1 build blueprint).
+Audience: anyone reviewing the project — the full picture, not just the current build.
+
+## Product
+
+"Dashboard" — Jonathan's private single-user personal dashboard. Canada-focused throughout.
+Title: Dashboard. Black surfaces, lime accents. Minimalist, visual, compact, expandable.
+Expanded cards show measurements, freshness, source, connection status. Mobile + keyboard required.
+Required additional service cost: $0.
+
+## Hard rules (all phases)
+
+- Ships empty of private data; the owner enters his own records.
+- Only public feeds update automatically. Private ingestion needs explicit authorization.
+- Zero personal context through ChatGPT, Gemini, Jules, or any third-party relay.
+- Weekly findings are proposals until the owner confirms them — never silently become tasks.
+- No trade execution. No investment result described as guaranteed.
+- Honest empty, stale, offline, and error states everywhere. Never invent activity.
+- One-click JSON export/import from day one; backups before features.
+
+## R1 — now building (see docs/BUILD-PLAN.md)
+
+Weekend 1: Today view, goals CRUD, three countdowns (fee 2026-11-25, visa docs 2026-12-15,
+intake 2027-01-11, America/Toronto pinned), JSON export/import, black/lime theme, mobile.
+Weekend 2: deadline radar, Bank of Canada indicator tiles, checklist progress rings, polish.
+Visual explainers locked to four items: countdown tiles, radar list, indicator tiles, progress rings.
+
+## R2 — after R1 ships (not started)
+
+- Full daily occurrences and adherence history for goals (streaks, timelines, missed/late check-ins).
+- Maps — places from owner input or authorized extraction (confirm-before-add), unique colors,
+  timeline sidebar, directions, travel-history review. Canada-focused.
+- College portal integration — myCentennial timetable, assignments, attendance, exams, fees,
+  countdowns. Batched checks, stop on risk signal. Never Outlook/college email.
+- Canada job matching — Job Bank + lawful Canadian sources, proactive profile matching,
+  government openings, provincial/Toronto/remote. Applications stay approval-gated.
+- Investment graphs and comparisons — watchlists, trajectory graphs, side-by-side,
+  deal-flow/earnings/M&A signals. No execution, no guaranteed-gain framing.
+- News expansion — global + Canadian, permitted headline sources, source/date/link/excerpt cards.
+  No full-article scraping.
+- Immigration — Canadian policy/program updates, employer/employee categories.
+  Private relevance only after authorization.
+- Economy — indicators, banking updates, rates with source and freshness evidence.
+- Habits — fitness and health tracking, no scope creep.
+- Automated ingestion — only when authorized and safe (frozen until after 2027-01-11 intake).
+
+## Later / optional
+
+- AI analysis layer, clearly separate from core. Core works with AI closed.
+  AI findings never silently change commitments or milestones.
+
+## Key dates (drive the countdowns)
+
+- Fee balance CA$1,289.81 due 2026-11-25. Visa-document upload due 2026-12-15.
+- Centennial intake 2027-01-11. Study permit filed 2026-10-02.
+
+## AI lanes (owner-assigned)
+
+- Codex (ChatGPT Plus) — code. Jules (REST API) — repo builds. Gemini Pro — research only.
