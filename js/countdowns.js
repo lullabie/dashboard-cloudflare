@@ -1,1 +1,102 @@
-LyoqCiAqIENvdW50ZG93bnMgQ29tcG9uZW50CiAqIEhhbmRsZXMgdGltZXpvbmUgcGlubmluZyAoQW1lcmljYS9Ub3JvbnRvKSBhbmQgcmVuZGVyaW5nIG9mIGNvdW50ZG93biB0aWxlcy4KICovCgovLyBQaW5uZWQgdGltZXpvbmUgZm9yIGRlYWRsaW5lcwpjb25zdCBUSU1FWk9ORSA9ICdBbWVyaWNhL1Rvcm9udG8nOwoKY29uc3QgREVBRExJTkVTID0gWwogICAgeyBpZDogJ2ZlZS1iYWxhbmNlJywgdGl0bGU6ICdGZWUgQmFsYW5jZSBEdWUnLCBkYXRlOiAnMjAyNi0xMS0yNScgfSwKICAgIHsgaWQ6ICd2aXNhLXVwbG9hZCcsIHRpdGxlOiAnVmlzYS1Eb2N1bWVudCBVcGxvYWQgRHVlJywgZGF0ZTogJzIwMjYtMTItMTUnIH0sCiAgICB7IGlkOiAnY2VudGVubmlhbC1pbnRha2UnLCB0aXRsZTogJ0NlbnRlbm5pYWwgSW50YWtlJywgZGF0ZTogJzIwMjctMDEtMTEnIH0KXTsKCi8vIEZpeGVkIGFyYml0cmFyeSBzdGFydCBkYXRlcyByZWxhdGl2ZSB0byBkZWFkbGluZXMganVzdCBmb3IgdmlzdWFsIHByb2dyZXNzIGJhci4KLy8gV2UnbGwgYXNzdW1lIGEgOTAtZGF5IHdpbmRvdyBmb3IgdmlzdWFsIHByb2dyZXNzIHJlcHJlc2VudGF0aW9uLgpjb25zdCBWSVNVQUxfV0lORE9XX0RBWVMgPSA5MDsgCgpmdW5jdGlvbiBnZXRUb3JvbnRvTWlkbmlnaHQoaXNvRGF0ZVN0cmluZykgewogICAgLy8gV2UgdHJlYXQgdGhlIGRlYWRsaW5lIGFzIG1pZG5pZ2h0IChzdGFydCBvZiBkYXkpIGluIFRvcm9udG8uCiAgICAvLyBIb3dldmVyLCBmb3IgY291bnRkb3ducywgaXQgb2Z0ZW4gbWVhbnMgZW5kLW9mLWRheS4gTGV0J3MgYXNzdW1lIGVuZC1vZi1kYXkgMjM6NTk6NTkuCiAgICAvLyBBIHNpbXBsZXIgYXBwcm9hY2ggZm9yICJkYXlzIGxlZnQiIGlzIHRvIGNvbXB1dGUgYm90aCBpbiB0aGUgc2FtZSB0aW1lem9uZS4KICAgIGNvbnN0IGZvcm1hdHRlciA9IG5ldyBJbnRsLkRhdGVUaW1lRm9ybWF0KCdlbi1VUycsIHsKICAgICAgICB0aW1lWm9uZTogVElNRVpPTkUsCiAgICAgICAgeWVhcjogJ251bWVyaWMnLAogICAgICAgIG1vbnRoOiAnMi1kaWdpdCcsCiAgICAgICAgZGF5OiAnMi1kaWdpdCcKICAgIH0pOwogICAgCiAgICAvLyBXZSBjYW4ndCBkaXJlY3RseSBwYXJzZSAnMjAyNi0xMS0yNScgYXMgVG9yb250byB0aW1lIGluIEpTIGVhc2lseSB3aXRob3V0IGEgbGlicmFyeSwKICAgIC8vIGJ1dCB3ZSBjYW4gY29uc3RydWN0IHRoZSBVVEMgZXF1aXZhbGVudCBvZiBUb3JvbnRvIG1pZG5pZ2h0LgogICAgLy8gQW4gZWFzeSBhcHByb3hpbWF0aW9uIGZvciAiZGF5cyBsZWZ0IiBpcyB0byBjYWxjdWxhdGUgYmFzZWQgb24gbG9jYWwgc3lzdGVtIHRpbWUgCiAgICAvLyBhbmQganVzdCB1c2UgdGhlIGRhdGUgc3RyaW5nLCBidXQgdGhlIHByb21wdCBzYXlzICJzdG9yZSBlYWNoIGRlYWRsaW5lIGFzIGRhdGUgKyBleHBsaWNpdCBJQU5BIHpvbmUgKEFtZXJpY2EvVG9yb250bykgYW5kIHJlbmRlciBkYXlzLWxlZnQgYWdhaW5zdCB0aGF0IHpvbmUiLgogICAgCiAgICAvLyBUbyBjYWxjdWxhdGUgZGF5cyBsZWZ0IHByZWNpc2VseSBhY2NvcmRpbmcgdG8gVG9yb250byB0aW1lem9uZToKICAgIC8vIDEuIEdldCBjdXJyZW50IHRpbWUKICAgIGNvbnN0IG5vdyA9IG5ldyBEYXRlKCk7CiAgICAvLyAyLiBGb3JtYXQgY3VycmVudCB0aW1lIGluIFRvcm9udG8gdG8gZ2V0ICJ0b2RheSdzIGRhdGUiIGluIFRvcm9udG8KICAgIGNvbnN0IHBhcnRzID0gZm9ybWF0dGVyLmZvcm1hdFRvUGFydHMobm93KTsKICAgIGNvbnN0IHRvcm9udG9EYXRlID0ge307CiAgICBwYXJ0cy5mb3JFYWNoKHAgPT4geyB0b3JvbnRvRGF0ZVtwLnR5cGVdID0gcC52YWx1ZTsgfSk7CiAgICBjb25zdCB0b2RheVRvcm9udG9TdHIgPSBgJHt0b3JvbnRvRGF0ZS55ZWFyfS0ke3Rvcm9udG9EYXRlLm1vbnRofS0ke3Rvcm9udG9EYXRlLmRheX1gOwogICAgCiAgICAvLyAzLiBTaW1wbGUgZGlmZiBiZXR3ZWVuIFlZWVktTU0tREQgc3RyaW5ncyB1c2luZyBVVEMgbm9vbiB0byBhdm9pZCBEU1QgaXNzdWVzCiAgICBjb25zdCB0b2RheVVUQyA9IG5ldyBEYXRlKGAke3RvZGF5VG9yb250b1N0cn1UMTI6MDA6MDBaYCk7CiAgICBjb25zdCBkZWFkbGluZVVUQyA9IG5ldyBEYXRlKGAke2lzb0RhdGVTdHJpbmd9VDEyOjAwOjAwWmApOwogICAgCiAgICBjb25zdCBkaWZmVGltZSA9IGRlYWRsaW5lVVRDIC0gdG9kYXlVVEM7CiAgICBjb25zdCBkaWZmRGF5cyA9IE1hdGguY2VpbChkaWZmVGltZSAvICgxMDAwICogNjAgKiA2MCAqIDI0KSk7CiAgICAKICAgIHJldHVybiBkaWZmRGF5czsKfQoKZnVuY3Rpb24gY3JlYXRlQ291bnRkb3duVGlsZShkZWFkbGluZSkgewogICAgY29uc3QgZGF5c0xlZnQgPSBnZXRUb3JvbnRvTWlkbmlnaHQoZGVhZGxpbmUuZGF0ZSk7CiAgICBsZXQgcHJvZ3Jlc3NQZXJjZW50ID0gMDsKICAgIAogICAgbGV0IHN0YXR1c1RleHQgPSBgJHtkYXlzTGVmdH0gZGF5cyBsZWZ0YDsKICAgIGxldCBjb2xvckNsYXNzID0gJ2xpbWUnOyAvLyB1c2luZyBvdXIgYmFkZ2UgY29sb3IgdGhlbWUgcm91Z2hseQogICAgCiAgICBpZiAoZGF5c0xlZnQgPCAwKSB7CiAgICAgICAgcHJvZ3Jlc3NQZXJjZW50ID0gMTAwOwogICAgICAgIHN0YXR1c1RleHQgPSBgJHtNYXRoLmFicyhkYXlzTGVmdCl9IGRheXMgb3ZlcmR1ZWA7CiAgICAgICAgY29sb3JDbGFzcyA9ICdkYW5nZXInOyAvLyBuZWVkIHRvIGhhbmRsZSB0aGlzIGluIENTUyBpZiB3ZSB3YW50CiAgICB9IGVsc2UgaWYgKGRheXNMZWZ0ID09PSAwKSB7CiAgICAgICAgcHJvZ3Jlc3NQZXJjZW50ID0gMTAwOwogICAgICAgIHN0YXR1c1RleHQgPSAnRHVlIFRvZGF5JzsKICAgIH0gZWxzZSB7CiAgICAgICAgLy8gQ2FsY3VsYXRlIHByb2dyZXNzIGJhc2VkIG9uIHZpc3VhbCB3aW5kb3cKICAgICAgICBwcm9ncmVzc1BlcmNlbnQgPSBNYXRoLm1heCgwLCBNYXRoLm1pbigxMDAsIDEwMCAtIChkYXlzTGVmdCAvIFZJU1VBTF9XSU5ET1dfREFZUykgKiAxMDApKTsKICAgIH0KICAgIAogICAgY29uc3QgY2FyZCA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgY2FyZC5jbGFzc05hbWUgPSAnY2FyZCc7CiAgICBjYXJkLmlubmVySFRNTCA9IGAKICAgICAgICA8ZGl2IGNsYXNzPSJjYXJkLWhlYWRlciI+CiAgICAgICAgICAgIDxkaXYgY2xhc3M9ImNhcmQtdGl0bGUiPiR7ZGVhZGxpbmUudGl0bGV9PC9kaXY+CiAgICAgICAgICAgIDxzcGFuIGNsYXNzPSJiYWRnZSAke2NvbG9yQ2xhc3N9Ij4ke3N0YXR1c1RleHR9PC9zcGFuPgogICAgICAgIDwvZGl2PgogICAgICAgIDxkaXYgY2xhc3M9ImNhcmQtYm9keSI+CiAgICAgICAgICAgIDxkaXYgY2xhc3M9ImNvdW50ZG93bi1sYWJlbCI+CiAgICAgICAgICAgICAgICA8c3Bhbj5EdWU6ICR7ZGVhZGxpbmUuZGF0ZX08L3NwYW4+CiAgICAgICAgICAgICAgICA8c3Bhbj5ab25lOiAke1RJTUVaT05FfTwvc3Bhbj4KICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgIDxkaXYgY2xhc3M9InByb2dyZXNzLWJhci1jb250YWluZXIiPgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0icHJvZ3Jlc3MtYmFyIiBzdHlsZT0id2lkdGg6ICR7cHJvZ3Jlc3NQZXJjZW50fSU7IGJhY2tncm91bmQtY29sb3I6ICR7ZGF5c0xlZnQgPCAwID8gJ3ZhcigtLWRhbmdlci1jb2xvciknIDogJ3ZhcigtLWFjY2VudC1jb2xvciknfSI+PC9kaXY+CiAgICAgICAgICAgIDwvZGl2PgogICAgICAgIDwvZGl2PgogICAgYDsKICAgIAogICAgcmV0dXJuIGNhcmQ7Cn0KCmV4cG9ydCBmdW5jdGlvbiByZW5kZXJDb3VudGRvd25zKGNvbnRhaW5lcklkKSB7CiAgICBjb25zdCBjb250YWluZXIgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZChjb250YWluZXJJZCk7CiAgICBpZiAoIWNvbnRhaW5lcikgcmV0dXJuOwogICAgCiAgICBjb250YWluZXIuaW5uZXJIVE1MID0gJyc7CiAgICBERUFETElORVMuZm9yRWFjaChkZWFkbGluZSA9PiB7CiAgICAgICAgY29udGFpbmVyLmFwcGVuZENoaWxkKGNyZWF0ZUNvdW50ZG93blRpbGUoZGVhZGxpbmUpKTsKICAgIH0pOwp9
+/**
+ * Countdowns Component
+ * Handles timezone pinning (America/Toronto) and rendering of countdown tiles.
+ */
+
+// Pinned timezone for deadlines
+const TIMEZONE = 'America/Toronto';
+
+const DEADLINES = [
+    { id: 'fee-balance', title: 'Fee Balance Due', date: '2026-11-25' },
+    { id: 'visa-upload', title: 'Visa-Document Upload Due', date: '2026-12-15' },
+    { id: 'centennial-intake', title: 'Centennial Intake', date: '2027-01-11' }
+];
+
+// Fixed arbitrary start dates relative to deadlines just for visual progress bar.
+// We'll assume a 90-day window for visual progress representation.
+const VISUAL_WINDOW_DAYS = 90; 
+
+function getTorontoMidnight(isoDateString) {
+    // We treat the deadline as midnight (start of day) in Toronto.
+    // However, for countdowns, it often means end-of-day. Let's assume end-of-day 23:59:59.
+    // A simpler approach for "days left" is to compute both in the same timezone.
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    
+    // We can't directly parse '2026-11-25' as Toronto time in JS easily without a library,
+    // but we can construct the UTC equivalent of Toronto midnight.
+    // An easy approximation for "days left" is to calculate based on local system time 
+    // and just use the date string, but the prompt says "store each deadline as date + explicit IANA zone (America/Toronto) and render days-left against that zone".
+    
+    // To calculate days left precisely according to Toronto timezone:
+    // 1. Get current time
+    const now = new Date();
+    // 2. Format current time in Toronto to get "today's date" in Toronto
+    const parts = formatter.formatToParts(now);
+    const torontoDate = {};
+    parts.forEach(p => { torontoDate[p.type] = p.value; });
+    const todayTorontoStr = `${torontoDate.year}-${torontoDate.month}-${torontoDate.day}`;
+    
+    // 3. Simple diff between YYYY-MM-DD strings using UTC noon to avoid DST issues
+    const todayUTC = new Date(`${todayTorontoStr}T12:00:00Z`);
+    const deadlineUTC = new Date(`${isoDateString}T12:00:00Z`);
+    
+    const diffTime = deadlineUTC - todayUTC;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays;
+}
+
+function createCountdownTile(deadline) {
+    const daysLeft = getTorontoMidnight(deadline.date);
+    let progressPercent = 0;
+    
+    let statusText = `${daysLeft} days left`;
+    let colorClass = 'lime'; // using our badge color theme roughly
+    
+    if (daysLeft < 0) {
+        progressPercent = 100;
+        statusText = `${Math.abs(daysLeft)} days overdue`;
+        colorClass = 'danger'; // need to handle this in CSS if we want
+    } else if (daysLeft === 0) {
+        progressPercent = 100;
+        statusText = 'Due Today';
+    } else {
+        // Calculate progress based on visual window
+        progressPercent = Math.max(0, Math.min(100, 100 - (daysLeft / VISUAL_WINDOW_DAYS) * 100));
+    }
+    
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+        <div class="card-header">
+            <div class="card-title">${deadline.title}</div>
+            <span class="badge ${colorClass}">${statusText}</span>
+        </div>
+        <div class="card-body">
+            <div class="countdown-label">
+                <span>Due: ${deadline.date}</span>
+                <span>Zone: ${TIMEZONE}</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" style="width: ${progressPercent}%; background-color: ${daysLeft < 0 ? 'var(--danger-color)' : 'var(--accent-color)'}"></div>
+            </div>
+        </div>
+    `;
+    
+    return card;
+}
+
+export function renderCountdowns(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = '';
+    DEADLINES.forEach(deadline => {
+        container.appendChild(createCountdownTile(deadline));
+    });
+}
