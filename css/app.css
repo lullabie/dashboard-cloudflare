@@ -326,12 +326,16 @@ input[type="text"]:focus, textarea:focus {
 
 .empty-state {
     color: var(--text-secondary);
-    font-style: italic;
     padding: 2rem;
     text-align: center;
     border: 1px dashed var(--border-color);
     border-radius: var(--radius-md);
     grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
 }
 
 /* Badges / Tags */
@@ -349,6 +353,16 @@ input[type="text"]:focus, textarea:focus {
     color: var(--accent-color);
 }
 
+.badge.danger {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: var(--danger-color);
+}
+
+.badge.amber {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: #f59e0b; /* amber-500 */
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .app-header {
@@ -362,5 +376,15 @@ input[type="text"]:focus, textarea:focus {
     }
     .grid-container {
         grid-template-columns: 1fr;
+    }
+    
+    .radar-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem;
+    }
+    
+    .radar-row .badge {
+        align-self: flex-start;
     }
 }
