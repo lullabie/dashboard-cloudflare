@@ -1,1 +1,11 @@
-IyBEYXNoYm9hcmQKClB1YmxpYyByZXBvc2l0b3J5IGZvciB0aGUgRGFzaGJvYXJkIHBlcnNvbmFsIHdlYiBhcHAgKFdlZWtlbmQgMSB2ZXJ0aWNhbCBzbGljZSBsaXZlKS4KU2VlIGRvY3MvQlVJTEQtUExBTi5tZCBmb3IgdGhlIGJ1aWxkIGJsdWVwcmludCBhbmQgZG9jcy9ST0FETUFQLm1kIGZvciB0aGUgZnVsbCByb2FkbWFwLgoKUmVhZCBpbiB0aGlzIG9yZGVyOgoKMS4gW1Byb2plY3Qgc3RhdHVzXShQUk9KRUNULVNUQVRVUy5tZCkgZm9yIGF1dGhvcml0eSwgY3VycmVudCB3b3JrIGFuZCBvcGVuIGRlY2lzaW9ucy4KMi4gW0J1aWxkIGJsdWVwcmludF0oZG9jcy9CVUlMRC1QTEFOLm1kKSBmb3IgYXJjaGl0ZWN0dXJlLCBzY29wZSBhbmQgbWV0aG9kcy4KMy4gW1JvYWRtYXBdKGRvY3MvUk9BRE1BUC5tZCkgZm9yIFIxLCBSMiBhbmQgbGF0ZXIuCjQuIFtQcm9qZWN0IGNvbnRleHRdKGRvY3MvQ09OVEVYVC5tZCkgZm9yIGRlY2lzaW9ucywgcmV0YWluZWQgc2NvcGUgYW5kIHNvdXJjZSBoaXN0b3J5Lgo=
+# Dashboard
+
+Public repository for the Dashboard personal web app (Weekend 1 vertical slice live).
+See docs/BUILD-PLAN.md for the build blueprint and docs/ROADMAP.md for the full roadmap.
+
+Read in this order:
+
+1. [Project status](PROJECT-STATUS.md) for authority, current work and open decisions.
+2. [Build blueprint](docs/BUILD-PLAN.md) for architecture, scope and methods.
+3. [Roadmap](docs/ROADMAP.md) for R1, R2 and later.
+4. [Project context](docs/CONTEXT.md) for decisions, retained scope and source history.
