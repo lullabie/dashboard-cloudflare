@@ -192,7 +192,7 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     // History Timeline (last 7 days)
     let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
     for (let i = 6; i >= 0; i--) {
-        const d = new Date(todayStr + 'T00:00:00');
+        const d = new Date(todayStr + 'T12:00:00');
         d.setDate(d.getDate() - i);
         const dateStr = getLocalDateString(d);
         const status = occurrences[dateStr] || 'none';
