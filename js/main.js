@@ -6,6 +6,7 @@ import { initStore, exportData, importData } from './store.js';
 import { renderCountdowns, renderRadar } from './countdowns.js';
 import { fetchAndRenderIndicators } from './indicators.js';
 import { getGoals, saveGoal, toggleArchive, createGoalCard, cycleOccurrence } from './goals.js';
+import { getPlaces, savePlace, deletePlace, getMapEmbedUrl, createPlaceElement } from './maps.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize Data
@@ -31,6 +32,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCancelModal = document.getElementById('btn-cancel-modal');
     const btnCreateGoal = document.getElementById('btn-create-goal');
     
+    // UI Elements - Maps
+    const placeModal = document.getElementById('place-modal');
+    const placeModalTitle = document.getElementById('place-modal-title');
+    const placeForm = document.getElementById('place-form');
+    const placeIdInput = document.getElementById('place-id');
+    const placeNameInput = document.getElementById('place-name');
+    const placeLatInput = document.getElementById('place-lat');
+    const placeLngInput = document.getElementById('place-lng');
+    const placeColorInput = document.getElementById('place-color');
+    const btnCancelPlaceModal = document.getElementById('btn-cancel-place-modal');
+    const btnCreatePlace = document.getElementById('btn-create-place');
+    const placesList = document.getElementById('places-list');
+    const mapContainer = document.getElementById('map-container');
+    let activePlaceId = null;
+
     // Settings Actions
     const btnExport = document.getElementById('btn-export');
     const importFileInput = document.getElementById('import-file');
@@ -154,6 +170,60 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshUI();
     });
 
+    // --- Place Modal Operations ---
+    function openPlaceModal(place = null) {
+        if (place) {
+            placeModalTitle.textContent = 'Edit Place';
+            placeIdInput.value = place.id;
+            placeNameInput.value = place.name;
+            placeLatInput.value = place.lat;
+            placeLngInput.value = place.lng;
+            placeColorInput.value = place.color || '#a3e635';
+        } else {
+            placeModalTitle.textContent = 'Add Place';
+            placeForm.reset();
+            placeIdInput.value = '';
+            placeColorInput.value = '#a3e635';
+        }
+        placeModal.classList.remove('hidden');
+        placeNameInput.focus();
+    }
+
+    function closePlaceModal() {
+        placeModal.classList.add('hidden');
+        placeForm.reset();
+    }
+
+    btnCreatePlace.addEventListener('click', () => openPlaceModal());
+    btnCancelPlaceModal.addEventListener('click', closePlaceModal);
+
+    placeForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const placeData = {
+            id: placeIdInput.value || null,
+            name: placeNameInput.value.trim(),
+            lat: parseFloat(placeLatInput.value),
+            lng: parseFloat(placeLngInput.value),
+            color: placeColorInput.value.trim() || '#a3e635'
+        };
+        
+        savePlace(placeData);
+        closePlaceModal();
+        refreshUI();
+    });
+    
+    // --- Maps Callbacks ---
+    const handleEditPlace = (place) => openPlaceModal(place);
+    const handleDeletePlace = (placeId) => {
+        if (activePlaceId === placeId) activePlaceId = null;
+        deletePlace(placeId);
+        refreshUI();
+    };
+    const handleClickPlace = (place) => {
+        activePlaceId = place.id;
+        refreshUI();
+    };
+
     // --- Goal Callbacks ---
     const handleEdit = (goal) => openModal(goal);
     const handleToggleArchive = (goalId) => {
@@ -212,6 +282,26 @@ document.addEventListener('DOMContentLoaded', () => {
             archivedGoals.forEach(g => {
                 archivedGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
             });
+        }
+        
+        // Maps View
+        const allPlaces = getPlaces();
+        placesList.innerHTML = '';
+        
+        if (allPlaces.length === 0) {
+            mapContainer.innerHTML = '<div class="empty-state">No places added yet. Add a place to see it on the map.</div>';
+        } else {
+            const activePlace = allPlaces.find(p => p.id === activePlaceId) || null;
+            
+            allPlaces.forEach(p => {
+                const isActive = p.id === activePlaceId;
+                placesList.appendChild(createPlaceElement(p, handleEditPlace, handleDeletePlace, handleClickPlace, isActive));
+            });
+            
+            const embedUrl = getMapEmbedUrl(allPlaces, activePlace);
+            if (embedUrl) {
+                mapContainer.innerHTML = `<iframe src="${embedUrl}" allowfullscreen></iframe>`;
+            }
         }
     }
 
