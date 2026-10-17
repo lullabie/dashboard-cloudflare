@@ -1,1 +1,69 @@
-IyBEYXNoYm9hcmQg4oCUIEJ1aWxkIEJsdWVwcmludCAoUjEpCgpEYXRlOiAyMDI2LTEwLTE3LiBTdGF0dXM6IFdlZWtlbmQgMSBpbiBwcm9ncmVzcyAoSnVsZXMgc2Vzc2lvbiAxNDIxNTQ2NzI5OTc2NTkwMTIyNykuClN1cGVyc2VkZXM6IGRvY3MvcGxhbi1iL0lNUExFTUVOVEFUSU9OLVBMQU4tMjAyNi0xMC0xNi5tZCAoUmVhY3QvVHlwZVNjcmlwdC9Xb3JrZXJzIHBsYW4g4oCUIHJlamVjdGVkIGJ5IGJ1aWxkLXBsYW4gdHJpYWwgMjAyNi0xMC0xNikuCgojIyBXaGF0IHdlIGFyZSBidWlsZGluZwoKIkRhc2hib2FyZCIg4oCUIGEgcHJpdmF0ZSBzaW5nbGUtdXNlciBwZXJzb25hbCBkYXNoYm9hcmQgd2ViIGFwcC4gUjEgc2NvcGUgb25seS4KUmVxdWlyZWQgYWRkaXRpb25hbCBzZXJ2aWNlIGNvc3Q6ICQwLgoKIyMgQXJjaGl0ZWN0dXJlIChiaW5kaW5nKQoKLSBWYW5pbGxhIEphdmFTY3JpcHQsIEVTIG1vZHVsZXMuIE5vIGJ1aWxkIHN0ZXAuIE5vIGZyYW1ld29yay4gTm8gVHlwZVNjcmlwdC4KLSB+MTUgZmlsZXMuIFN0YXRpYyBzaXRlLiBObyBiYWNrZW5kLCBubyBkYXRhYmFzZSwgbm8gYXV0aCwgbm8gc3luYy4KLSBEYXRhIGxpdmVzIE9OTFkgaW4gdGhlIGJyb3dzZXIncyBsb2NhbFN0b3JhZ2UgKDUgTWlCIGJ1ZGdldCkuIFplcm8gcGVyc29uYWwgZGF0YSBpbiB0aGUgcmVwbywgVVJMcywgbG9ncywgb3IgY29tbWl0cy4gVGhlIHJlcG8gc2hpcHMgd2l0aCBlbXB0eSBzZWVkIHN0YXRlLgotIEpTT04gZXhwb3J0L2ltcG9ydCBpcyB0aGUgZHVyYWJpbGl0eSBsYXllcjogZW52ZWxvcGUgYHthcHA6ImRhc2hib2FyZCIsIHNjaGVtYVZlcnNpb24sIGV4cG9ydGVkQXQsIGRhdGF9YC4gSW1wb3J0IHNob3dzIHJlc3RvcmUgcHJldmlldywgYXNrcyBjb25maXJtYXRpb24sIHJlamVjdHMgdW5rbm93biBzY2hlbWEgdmVyc2lvbnMgbG91ZGx5LCBwcmVzZXJ2ZXMgaGlzdG9yeS4KCiMjIEhvc3RpbmcKCi0gUHJpbWFyeTogQ2xvdWRmbGFyZSBQYWdlcyBGcmVlIChwcml2YXRlIHJlcG9zIHN1cHBvcnRlZCwgbm8gY2FyZCByZXF1aXJlZCkuCi0gRmFsbGJhY2sgdXNlZCBieSBXZWVrZW5kIDE6IEdpdEh1YiBQYWdlcyB2aWEgYC5naXRodWIvd29ya2Zsb3dzL3BhZ2VzLnltbGAgKHJlcXVpcmVzIHB1YmxpYyByZXBvKS4KLSBSZXBvIHZpc2liaWxpdHk6IHB1YmxpYyAob3duZXIgZGVjaXNpb24gMjAyNi0xMC0xNykg4oCUIHByaXZhY3kgbWVhbnMgZGF0YS1vbmx5LgoKIyMgUjEgc2NvcGUKCldlZWtlbmQgMSAodmVydGljYWwgc2xpY2UsIHNoaXBwYWJsZSk6CjEuIERlcGxveSBwaXBlbGluZSBsaXZlLgoyLiBUb2RheSB2aWV3IOKAlCBnb2Fscy9wcmlvcml0aWVzLCBvdmVyZHVlL3VwY29taW5nLCBob25lc3QgZW1wdHkgc3RhdGVzIChuZXZlciBpbnZlbnQgYWN0aXZpdHkpLgozLiBHb2FscyBDUlVEIOKAlCBjcmVhdGUsIGVkaXQsIGFyY2hpdmUsIHJlc3RvcmU7IG5vdGVzIHdpdGggInNob3cgbm90ZXMgb24gY2FyZCI7IG1hbnVhbCBhY2hpZXZlbWVudDsgaW1tdXRhYmxlIGhpc3RvcnkgKGNvcnJlY3Rpb25zIGFwcGVuZCkuCjQuIENvdW50ZG93biB0aWxlcyB3aXRoIHByb2dyZXNzIGJhcnMgKFZFMSkg4oCUIGZlZSBiYWxhbmNlIDIwMjYtMTEtMjUsIHZpc2EgZG9jcyAyMDI2LTEyLTE1LCBpbnRha2UgMjAyNy0wMS0xMS4gVGltZXpvbmUgcGlubmVkOiBkYXRlICsgZXhwbGljaXQgSUFOQSB6b25lIChBbWVyaWNhL1Rvcm9udG8pLCBkYXlzLWxlZnQgcmVuZGVyZWQgYWdhaW5zdCB0aGF0IHpvbmUsIGxhYmVsZWQuCjUuIE9uZS1jbGljayBKU09OIGV4cG9ydC9pbXBvcnQgKGVudmVsb3BlIHZlcnNpb25lZCkuCjYuIEJsYWNrIHRoZW1lLCBsaW1lIGFjY2VudHMsIGNvbXBhY3QgY2FyZHMsIGV4cGFuZGFibGUgZGV0YWlsIChtZWFzdXJlbWVudHMsIGZyZXNobmVzcywgc291cmNlLCBjb25uZWN0aW9uIHN0YXR1cykuIE1vYmlsZS1yZWFkYWJsZS4gS2V5Ym9hcmQgb3BlcmFibGUuCgpXZWVrZW5kIDI6Ci0gRGVhZGxpbmUgcmFkYXIgKFZFMiDigJQgdXJnZW5jeSBjb2xvciBsaXN0KS4KLSBCYW5rIG9mIENhbmFkYSBpbmRpY2F0b3IgdGlsZXMgKFZFMyDigJQgdmFsdWUsIGNoYW5nZSwgImFzIG9mIiBkYXRlLCBzb3VyY2UgbGluazsgVmFsZXQgQVBJLCBjYWNoZWQgZGFpbHksIHN0YWxlIGJhZGdlIG9uIGZhaWx1cmUsIG5ldmVyIGJsb2NrcyBsb2FkKS4KLSBDaGVja2xpc3QgcHJvZ3Jlc3MgcmluZ3MgKFZFNCkuCi0gUG9saXNoOiBlbXB0eS9lcnJvciBzdGF0ZXMsIGtleWJvYXJkIHBhc3MuCgpWaXN1YWwgZXhwbGFpbmVycyAoYmluZGluZyBjb25kaXRpb24gMykgPSBleGFjdGx5IFZFMeKAk1ZFNCBhYm92ZS4gTm90aGluZyBlbHNlLgoKIyMgTm9uLWdvYWxzIChmcm96ZW4pCgpTY3JhcGluZyAobXlDZW50ZW5uaWFsLCBHbWFpbCwgSm9iIEJhbmspIGZyb3plbiB1bnRpbCBhZnRlciAyMDI3LTAxLTExIGludGFrZS4gTm8gY2hhcnQgbGlicmFyeSB1bmxlc3MgdGhlIHJvYWRtYXAtdG9vbHMgdHJpYWwgbWFuZGF0ZXMgaXQuIE5vIGF1dGgvbXVsdGktdXNlci9zeW5jLCBubyBub3RpZmljYXRpb25zLCBubyBzZXJ2aWNlIHdvcmtlciwgbm8gY3VzdG9tIGRvbWFpbiwgbm8gQUkgZmVhdHVyZXMgaW4tYXBwLCBubyBpMThuLCBubyBleHRyYSB0aGVtZXMsIG5vIGJhY2tlbmQuCgojIyBBSSBsYW5lcyAob3duZXItYXNzaWduZWQgMjAyNi0xMC0xNikKCi0gQ29kZXggKENoYXRHUFQgUGx1cywgbm9hbWFuaHNzbkBnbWFpbC5jb20pIOKAlCBjb2RlIGltcGxlbWVudGF0aW9uLgotIEp1bGVzIChzZWNyZXR1bmRlcjY5QGdtYWlsLmNvbSwgUkVTVCBBUEkpIOKAlCByZXBvLWxldmVsIGJ1aWxkIHRhc2tzLgotIEdlbWluaSBQcm8gKEdvb2dsZSBBSSBQcm8sIHNlY3JldHVuZGVyNjlAZ21haWwuY29tKSDigJQgcmVzZWFyY2gvYW5hbHlzaXMgb25seS4KCkhhcmQgY29uc3RyYWludDogWkVSTyBvZiB0aGUgb3duZXIncyBwZXJzb25hbCBjb250ZXh0IGNyb3NzZXMgaW50byBDaGF0R1BULCBHZW1pbmksIEp1bGVzLCBvciBhbnkgdGhpcmQtcGFydHkgcmVsYXkuIEdlbmVyaWMgdGVjaG5pY2FsIHdvcmsgb25seS4KCiMjIE93bmVyIHJ1bGluZ3MgKDIwMjYtMTAtMTYpCgoxLiBQcml2YWN5IHNjb3BlOiBkYXRhLW9ubHkgKGRhdGEgc3RheXMgcHJpdmF0ZTsgY29kZSBtYXkgYmUgcHVibGljKS4KMi4gIlZpc3VhbCBleHBsYWluZXJzIiBsb2NrZWQgdG8gdGhlIGZvdXIgaXRlbXMgYWJvdmUuCgojIyBUd28td2Vla2VuZCBjYXAKCldlZWtlbmQgMSBzaGlwcyB0aGUgdmVydGljYWwgc2xpY2UgYWJvdmUgb3IgdGhlIGJ1aWxkIHN0b3BzLiBXZWVrZW5kIDIgYWRkcyBpbmRpY2F0b3JzLCByYWRhciwgcG9saXNoLiBSMiAobWFwcywgY29sbGVnZSBwb3J0YWwsIGpvYnMsIGludmVzdG1lbnRzLCBuZXdzLCBoYWJpdHMpIGlzIHNlcGFyYXRlIGFuZCBub3Qgc3RhcnRlZC4KCiMjIE1ldGhvZHMgYW5kIHR3ZWFrcwoKLSBTbWFsbGVzdCBjb21wbGV0ZSBkaWZmIHBlciBjaGFuZ2U7IHJldXNlIGV4aXN0aW5nIHJlcG8gcGF0dGVybnMuCi0gVmVyaWZ5IHRoZSBhY3RpdmUgYWNjb3VudCAoZW1haWwgZnJvbSBhY2NvdW50IG1lbnUpIGJlZm9yZSByZXBvcnRpbmcgYW55IHNpZ24taW4gc3RhdHVzLgotIE5ldmVyIG92ZXJ3cml0ZSBhIGRlbGl2ZXJlZCBmaWxlIGluIHBsYWNlOyByZWFkIGJhY2sgZXZlcnkgcHVibGlzaGVkIGNoYW5nZS4KLSBDbGFpbSBkaXNjaXBsaW5lOiBsYWJlbCBsb2FkLWJlYXJpbmcgY2xhaW1zICh2ZXJpZmllZCAvIGluZmVycmVkIC8gc2luZ2xlLXNvdXJjZSk7IG5ldmVyIHNoaXAgInZlcmlmaWVkIiB3aXRob3V0IHJlcHJvZHVjaWJsZSBldmlkZW5jZS4KLSBUb29saW5nIHBvbGljeTogZG9jcy9UT09MSU5HLm1kLiBDbG91ZGZsYXJlIHJlc2VhcmNoOiBkb2NzL3Jlc2VhcmNoL01VU0UtQ0xPVURGTEFSRS0yMDI2LTEwLTE2Lm1kIGFuZCBkb2NzL3BsYW4tYi9DTE9VREZMQVJFLVJFU0VBUkNILTIwMjYtMTAtMTYubWQuCg==
+# Dashboard — Build Blueprint (R1)
+
+Date: 2026-10-17. Status: Weekend 1 in progress (Jules session 14215467299765901227).
+Supersedes: docs/plan-b/IMPLEMENTATION-PLAN-2026-10-16.md (React/TypeScript/Workers plan — rejected by build-plan trial 2026-10-16).
+
+## What we are building
+
+"Dashboard" — a private single-user personal dashboard web app. R1 scope only.
+Required additional service cost: $0.
+
+## Architecture (binding)
+
+- Vanilla JavaScript, ES modules. No build step. No framework. No TypeScript.
+- ~15 files. Static site. No backend, no database, no auth, no sync.
+- Data lives ONLY in the browser's localStorage (5 MiB budget). Zero personal data in the repo, URLs, logs, or commits. The repo ships with empty seed state.
+- JSON export/import is the durability layer: envelope `{app:"dashboard", schemaVersion, exportedAt, data}`. Import shows restore preview, asks confirmation, rejects unknown schema versions loudly, preserves history.
+
+## Hosting
+
+- Primary: Cloudflare Pages Free (private repos supported, no card required).
+- Fallback used by Weekend 1: GitHub Pages via `.github/workflows/pages.yml` (requires public repo).
+- Repo visibility: public (owner decision 2026-10-17) — privacy means data-only.
+
+## R1 scope
+
+Weekend 1 (vertical slice, shippable):
+1. Deploy pipeline live.
+2. Today view — goals/priorities, overdue/upcoming, honest empty states (never invent activity).
+3. Goals CRUD — create, edit, archive, restore; notes with "show notes on card"; manual achievement; immutable history (corrections append).
+4. Countdown tiles with progress bars (VE1) — fee balance 2026-11-25, visa docs 2026-12-15, intake 2027-01-11. Timezone pinned: date + explicit IANA zone (America/Toronto), days-left rendered against that zone, labeled.
+5. One-click JSON export/import (envelope versioned).
+6. Black theme, lime accents, compact cards, expandable detail (measurements, freshness, source, connection status). Mobile-readable. Keyboard operable.
+
+Weekend 2:
+- Deadline radar (VE2 — urgency color list).
+- Bank of Canada indicator tiles (VE3 — value, change, "as of" date, source link; Valet API, cached daily, stale badge on failure, never blocks load).
+- Checklist progress rings (VE4).
+- Polish: empty/error states, keyboard pass.
+
+Visual explainers (binding condition 3) = exactly VE1–VE4 above. Nothing else.
+
+## Non-goals (frozen)
+
+Scraping (myCentennial, Gmail, Job Bank) frozen until after 2027-01-11 intake. No chart library unless the roadmap-tools trial mandates it. No auth/multi-user/sync, no notifications, no service worker, no custom domain, no AI features in-app, no i18n, no extra themes, no backend.
+
+## AI lanes (owner-assigned 2026-10-16)
+
+- Codex (ChatGPT Plus, noamanhssn@gmail.com) — code implementation.
+- Jules (secretunder69@gmail.com, REST API) — repo-level build tasks.
+- Gemini Pro (Google AI Pro, secretunder69@gmail.com) — research/analysis only.
+
+Hard constraint: ZERO of the owner's personal context crosses into ChatGPT, Gemini, Jules, or any third-party relay. Generic technical work only.
+
+## Owner rulings (2026-10-16)
+
+1. Privacy scope: data-only (data stays private; code may be public).
+2. "Visual explainers" locked to the four items above.
+
+## Two-weekend cap
+
+Weekend 1 ships the vertical slice above or the build stops. Weekend 2 adds indicators, radar, polish. R2 (maps, college portal, jobs, investments, news, habits) is separate and not started.
+
+## Methods and tweaks
+
+- Smallest complete diff per change; reuse existing repo patterns.
+- Verify the active account (email from account menu) before reporting any sign-in status.
+- Never overwrite a delivered file in place; read back every published change.
+- Claim discipline: label load-bearing claims (verified / inferred / single-source); never ship "verified" without reproducible evidence.
+- Tooling policy: docs/TOOLING.md. Cloudflare research: docs/research/MUSE-CLOUDFLARE-2026-10-16.md and docs/plan-b/CLOUDFLARE-RESEARCH-2026-10-16.md.
