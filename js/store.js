@@ -9,7 +9,8 @@ const APP_IDENTIFIER = 'dashboard';
 
 // Seed state when no data exists
 const SEED_STATE = {
-    goals: []
+    goals: [],
+    places: []
 };
 
 // Ensure data is loaded
