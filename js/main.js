@@ -5,7 +5,7 @@
 import { initStore, exportData, importData } from './store.js';
 import { renderCountdowns, renderRadar } from './countdowns.js';
 import { fetchAndRenderIndicators } from './indicators.js';
-import { getGoals, saveGoal, toggleArchive, checkInGoal, createGoalCard } from './goals.js';
+import { getGoals, saveGoal, toggleArchive, createGoalCard, cycleOccurrence } from './goals.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize Data
@@ -160,9 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleArchive(goalId);
         refreshUI();
     };
-    const handleCheckIn = (goalId) => {
-        // Honest manual check-in
-        checkInGoal(goalId, 'Manual check-in');
+    const handleCycleOccurrence = (goalId, dateStr) => {
+        cycleOccurrence(goalId, dateStr);
         refreshUI();
     };
 
@@ -189,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
             todayGoalsContainer.innerHTML = '<div class="empty-state">No active goals for today. Enjoy your day!</div>';
         } else {
             activeGoals.forEach(g => {
-                todayGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCheckIn));
+                todayGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
             });
         }
         
@@ -200,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeGoalsContainer.innerHTML = '<div class="empty-state">You have no active goals.</div>';
         } else {
             activeGoals.forEach(g => {
-                activeGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCheckIn));
+                activeGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
             });
         }
         
@@ -211,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             archivedGoalsContainer.innerHTML = '<div class="empty-state">Archive is empty.</div>';
         } else {
             archivedGoals.forEach(g => {
-                archivedGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCheckIn));
+                archivedGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
             });
         }
     }
