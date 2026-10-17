@@ -100,3 +100,62 @@ export function renderCountdowns(containerId) {
         container.appendChild(createCountdownTile(deadline));
     });
 }
+
+function createRadarRow(deadline) {
+    const daysLeft = getTorontoMidnight(deadline.date);
+    
+    let statusText = `${daysLeft} days`;
+    let colorClass = 'lime';
+    let isOverdue = false;
+    
+    if (daysLeft < 0) {
+        statusText = 'overdue';
+        colorClass = 'danger';
+        isOverdue = true;
+    } else if (daysLeft === 0) {
+        statusText = 'Due Today';
+        colorClass = 'danger';
+    } else if (daysLeft < 7) {
+        colorClass = 'danger'; // red < 7 days
+    } else if (daysLeft < 30) {
+        colorClass = 'amber'; // amber < 30 days
+    }
+    
+    const row = document.createElement('div');
+    row.className = 'radar-row card';
+    // Style radar rows to be more compact
+    row.style.flexDirection = 'row';
+    row.style.justifyContent = 'space-between';
+    row.style.alignItems = 'center';
+    
+    row.innerHTML = `
+        <div style="display: flex; flex-direction: column;">
+            <span style="font-weight: 600;">${deadline.title}</span>
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Due: ${deadline.date}</span>
+        </div>
+        <span class="badge ${colorClass}">${statusText}</span>
+    `;
+    
+    return { element: row, daysLeft: daysLeft, isOverdue: isOverdue };
+}
+
+export function renderRadar(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    const radarItems = DEADLINES.map(createRadarRow);
+    
+    // Sort by urgency. Overdue items pinned to top.
+    radarItems.sort((a, b) => {
+        if (a.isOverdue && !b.isOverdue) return -1;
+        if (!a.isOverdue && b.isOverdue) return 1;
+        // if both or neither are overdue, sort by days left ascending
+        return a.daysLeft - b.daysLeft;
+    });
+    
+    radarItems.forEach(item => {
+        container.appendChild(item.element);
+    });
+}
