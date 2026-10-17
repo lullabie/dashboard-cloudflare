@@ -7,6 +7,7 @@ import { renderCountdowns, renderRadar } from './countdowns.js';
 import { fetchAndRenderIndicators } from './indicators.js';
 import { getGoals, saveGoal, toggleArchive, createGoalCard, cycleOccurrence } from './goals.js';
 import { getPlaces, savePlace, deletePlace, getMapEmbedUrl, createPlaceElement } from './maps.js';
+import { getCollegeData, saveCollegeItem, deleteCollegeItem, createCollegeCard } from './college.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize Data
@@ -46,6 +47,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const placesList = document.getElementById('places-list');
     const mapContainer = document.getElementById('map-container');
     let activePlaceId = null;
+
+    // College Elements
+    const collegeModal = document.getElementById('college-modal');
+    const collegeModalTitle = document.getElementById('college-modal-title');
+    const collegeForm = document.getElementById('college-form');
+    const collegeItemIdInput = document.getElementById('college-item-id');
+    const collegeItemTypeInput = document.getElementById('college-item-type');
+    const collegeItemTitleInput = document.getElementById('college-item-title');
+    const collegeItemDateInput = document.getElementById('college-item-date');
+    const collegeItemNotesInput = document.getElementById('college-item-notes');
+    const btnCreateCollegeItem = document.getElementById('btn-create-college-item');
+    const btnCancelCollegeModal = document.getElementById('btn-cancel-college-modal');
 
     // Settings Actions
     const btnExport = document.getElementById('btn-export');
@@ -99,12 +112,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleTabClick(btn) {
-            tabBtns.forEach(b => b.classList.remove('active'));
+            // Find parent view to scope tabs (Goals vs College)
+            const parentView = btn.closest('.view');
+            const localTabBtns = parentView.querySelectorAll('.tab-btn');
+            const localTabContents = parentView.querySelectorAll('.tab-content');
+
+            localTabBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             
             const tabId = btn.dataset.tab;
-            tabContents.forEach(c => {
-                if(c.id === `${tabId}-container`) {
+            
+            // Goals tabs vs College tabs have slightly different ID structures
+            localTabContents.forEach(c => {
+                if(c.id === `${tabId}-container` || c.id === `college-${tabId}-container`) {
                     c.classList.remove('hidden');
                     c.classList.add('active');
                 } else {
@@ -194,11 +214,61 @@ document.addEventListener('DOMContentLoaded', () => {
         placeForm.reset();
     }
 
+    // --- College Modal Operations ---
+    function openCollegeModal(item = null, type = 'timetable') {
+        if (item) {
+            collegeModalTitle.textContent = 'Edit College Item';
+            collegeItemIdInput.value = item.id;
+            collegeItemTypeInput.value = type;
+            collegeItemTitleInput.value = item.title;
+            collegeItemDateInput.value = item.date;
+            collegeItemNotesInput.value = item.notes || '';
+            collegeItemTypeInput.disabled = true; // Can't change type when editing
+        } else {
+            collegeModalTitle.textContent = 'Add College Item';
+            collegeForm.reset();
+            collegeItemIdInput.value = '';
+            
+            // Try to set type based on active tab
+            const activeTabBtn = document.querySelector('#view-college .tab-btn.active');
+            if (activeTabBtn) {
+                collegeItemTypeInput.value = activeTabBtn.dataset.tab;
+            }
+            collegeItemTypeInput.disabled = false;
+        }
+        collegeModal.classList.remove('hidden');
+        collegeItemTitleInput.focus();
+    }
+
+    function closeCollegeModal() {
+        collegeModal.classList.add('hidden');
+        collegeForm.reset();
+    }
+
+    btnCreateCollegeItem.addEventListener('click', () => openCollegeModal());
+    btnCancelCollegeModal.addEventListener('click', closeCollegeModal);
+
+    collegeForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const type = collegeItemTypeInput.value;
+        const itemData = {
+            id: collegeItemIdInput.value || null,
+            title: collegeItemTitleInput.value.trim(),
+            date: collegeItemDateInput.value,
+            notes: collegeItemNotesInput.value.trim()
+        };
+        
+        saveCollegeItem(type, itemData);
+        closeCollegeModal();
+        refreshUI();
+    });
+
     // Escape closes any open modal
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             if (!modal.classList.contains('hidden')) closeModal();
             if (!placeModal.classList.contains('hidden')) closePlaceModal();
+            if (!collegeModal.classList.contains('hidden')) closeCollegeModal();
         }
     });
 
@@ -240,6 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const handleCycleOccurrence = (goalId, dateStr) => {
         cycleOccurrence(goalId, dateStr);
+        refreshUI();
+    };
+    
+    // --- College Callbacks ---
+    const handleEditCollege = (item, type) => openCollegeModal(item, type);
+    const handleDeleteCollege = (type, itemId) => {
+        deleteCollegeItem(type, itemId);
         refreshUI();
     };
 
@@ -311,6 +388,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapContainer.innerHTML = `<iframe src="${embedUrl}" allowfullscreen></iframe>`;
             }
         }
+        
+        // College View
+        const collegeData = getCollegeData();
+        ['timetable', 'assignments', 'exams', 'fees'].forEach(type => {
+            const container = document.getElementById(`college-${type}-container`);
+            if (!container) return;
+            
+            container.innerHTML = '';
+            const items = collegeData[type] || [];
+            
+            if (items.length === 0) {
+                container.innerHTML = `<div class="empty-state">No ${type} added yet.</div>`;
+            } else {
+                // Sort by date mostly
+                items.sort((a, b) => new Date(a.date) - new Date(b.date));
+                items.forEach(item => {
+                    container.appendChild(createCollegeCard(item, type, handleEditCollege, handleDeleteCollege));
+                });
+            }
+        });
     }
 
     // Initial render

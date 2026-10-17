@@ -16,7 +16,7 @@ const DEADLINES = [
 // We'll assume a 90-day window for visual progress representation.
 const VISUAL_WINDOW_DAYS = 90; 
 
-function getTorontoMidnight(isoDateString) {
+export function getTorontoMidnight(isoDateString) {
     // We treat the deadline as midnight (start of day) in Toronto.
     // However, for countdowns, it often means end-of-day. Let's assume end-of-day 23:59:59.
     // A simpler approach for "days left" is to compute both in the same timezone.

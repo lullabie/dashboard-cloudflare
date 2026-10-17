@@ -13,6 +13,7 @@
             <button class="nav-btn active" data-view="today">Today</button>
             <button class="nav-btn" data-view="goals">Goals</button>
             <button class="nav-btn" data-view="maps">Maps</button>
+            <button class="nav-btn" data-view="college">College</button>
             <button class="nav-btn" data-view="settings">Settings</button>
         </nav>
     </header>
@@ -64,6 +65,24 @@
                     <div class="empty-state">No places added yet. Add a place to see it on the map.</div>
                 </div>
             </div>
+        </section>
+
+        <section id="view-college" class="view hidden">
+            <div class="view-header">
+                <h2>College</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="timetable">Timetable</button>
+                    <button class="tab-btn" data-tab="assignments">Assignments</button>
+                    <button class="tab-btn" data-tab="exams">Exams</button>
+                    <button class="tab-btn" data-tab="fees">Fees</button>
+                </div>
+                <button id="btn-create-college-item" class="primary-btn">+ Add Item</button>
+            </div>
+            
+            <div id="college-timetable-container" class="grid-container tab-content active"></div>
+            <div id="college-assignments-container" class="grid-container tab-content hidden"></div>
+            <div id="college-exams-container" class="grid-container tab-content hidden"></div>
+            <div id="college-fees-container" class="grid-container tab-content hidden"></div>
         </section>
 
         <section id="view-settings" class="view hidden">
@@ -135,6 +154,40 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="secondary-btn" id="btn-cancel-place-modal">Cancel</button>
+                    <button type="submit" class="primary-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="college-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="college-modal-title">Add College Item</h2>
+            <form id="college-form">
+                <input type="hidden" id="college-item-id">
+                <div class="form-group">
+                    <label for="college-item-type">Type</label>
+                    <select id="college-item-type" required>
+                        <option value="timetable">Timetable</option>
+                        <option value="assignments">Assignment</option>
+                        <option value="exams">Exam</option>
+                        <option value="fees">Fee</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="college-item-title">Title / Name</label>
+                    <input type="text" id="college-item-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="college-item-date">Date / Time (America/Toronto)</label>
+                    <input type="date" id="college-item-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="college-item-notes">Notes / Value</label>
+                    <textarea id="college-item-notes" rows="2"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" id="btn-cancel-college-modal">Cancel</button>
                     <button type="submit" class="primary-btn">Save</button>
                 </div>
             </form>

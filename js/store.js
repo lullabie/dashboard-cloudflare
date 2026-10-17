@@ -10,7 +10,13 @@ const APP_IDENTIFIER = 'dashboard';
 // Seed state when no data exists
 const SEED_STATE = {
     goals: [],
-    places: []
+    places: [],
+    college: {
+        timetable: [],
+        assignments: [],
+        exams: [],
+        fees: []
+    }
 };
 
 // Ensure data is loaded

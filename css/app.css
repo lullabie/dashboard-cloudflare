@@ -259,7 +259,7 @@ label {
     color: var(--text-secondary);
 }
 
-input[type="text"], textarea {
+input[type="text"], input[type="date"], select, textarea {
     width: 100%;
     background-color: var(--bg-color);
     border: 1px solid var(--border-color);
@@ -269,7 +269,7 @@ input[type="text"], textarea {
     font-family: inherit;
 }
 
-input[type="text"]:focus, textarea:focus {
+input[type="text"]:focus, input[type="date"]:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--accent-color);
 }
@@ -480,4 +480,8 @@ input[type="text"]:focus, textarea:focus {
     .maps-map {
         height: 400px;
     }
+}
+/* College specifics */
+#view-college .card-body strong {
+    color: var(--text-primary);
 }
