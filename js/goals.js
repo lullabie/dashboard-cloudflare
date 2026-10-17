@@ -73,37 +73,104 @@ export function toggleArchive(goalId) {
     }
 }
 
-export function checkInGoal(goalId, note = '') {
+// --- Occurrences & History ---
+
+export function getLocalDateString(date) {
+    return new Intl.DateTimeFormat('en-CA', { 
+        timeZone: 'America/Toronto',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date);
+}
+
+export function cycleOccurrence(goalId, dateStr) {
     const data = getData();
     const goal = data.goals.find(g => g.id === goalId);
-    if (goal) {
-        goal.checkIns.push({
-            timestamp: new Date().toISOString(),
-            note: note
-        });
-        goal.history.push({
-            type: 'CHECK_IN',
-            timestamp: new Date().toISOString()
-        });
-        goal.updatedAt = new Date().toISOString();
-        saveData(data);
+    if (!goal) return;
+
+    if (!goal.occurrences) {
+        goal.occurrences = {};
     }
+
+    const currentStatus = goal.occurrences[dateStr];
+    let nextStatus = 'none';
+    
+    if (!currentStatus || currentStatus === 'none') nextStatus = 'done';
+    else if (currentStatus === 'done') nextStatus = 'missed';
+    else if (currentStatus === 'missed') nextStatus = 'late';
+    else if (currentStatus === 'late') nextStatus = 'none';
+
+    if (nextStatus === 'none') {
+        delete goal.occurrences[dateStr];
+    } else {
+        goal.occurrences[dateStr] = nextStatus;
+    }
+
+    goal.history.push({
+        type: 'OCCURRENCE_CHANGE',
+        timestamp: new Date().toISOString(),
+        date: dateStr,
+        status: nextStatus
+    });
+    
+    goal.updatedAt = new Date().toISOString();
+    saveData(data);
+}
+
+export function calculateStreak(occurrences, todayStr) {
+    if (!occurrences) return 0;
+    
+    let streak = 0;
+    // We append noon so that it doesn't shift days due to minor timezone offsets 
+    // when using Date object arithmetic. 'America/Toronto' is used for string generation.
+    const today = new Date(todayStr + 'T12:00:00'); 
+    
+    let currentDate = new Date(today);
+    const todayStatus = occurrences[getLocalDateString(currentDate)];
+    
+    // If today was explicitly missed or late, the streak is dead.
+    if (todayStatus === 'missed' || todayStatus === 'late') {
+        return 0;
+    }
+
+    // Check if today is done.
+    if (todayStatus === 'done') {
+        streak++;
+    }
+    
+    // Move to yesterday and go backwards
+    currentDate.setDate(currentDate.getDate() - 1);
+
+    while (true) {
+        const dateStr = getLocalDateString(currentDate);
+        if (occurrences[dateStr] === 'done') {
+            streak++;
+            currentDate.setDate(currentDate.getDate() - 1);
+        } else {
+            break;
+        }
+    }
+    
+    return streak;
 }
 
 /**
  * Creates a DOM element for a goal card
  */
-export function createGoalCard(goal, onEdit, onToggleArchive, onCheckIn) {
+export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence) {
     const card = document.createElement('div');
     card.className = 'card';
     card.dataset.id = goal.id;
     
-    const lastCheckIn = goal.checkIns.length > 0 
-        ? new Date(goal.checkIns[goal.checkIns.length - 1].timestamp).toLocaleDateString() 
-        : 'Never';
+    const occurrences = goal.occurrences || {};
+    const doneDays = Object.values(occurrences).filter(status => status === 'done').length;
 
     const target = goal.target || 1;
-    const progress = Math.min(100, Math.round((goal.checkIns.length / target) * 100));
+    const progress = Math.min(100, Math.round((doneDays / target) * 100));
+    
+    const todayStr = getLocalDateString(new Date());
+    const streak = calculateStreak(occurrences, todayStr);
     
     // SVG Progress Ring (Lime on Black)
     // 2 * pi * r = 2 * Math.PI * 16 ~= 100.5
@@ -122,6 +189,29 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCheckIn) {
         </div>
     `;
 
+    // History Timeline (last 7 days)
+    let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(todayStr + 'T00:00:00');
+        d.setDate(d.getDate() - i);
+        const dateStr = getLocalDateString(d);
+        const status = occurrences[dateStr] || 'none';
+        
+        let bgColor = 'var(--surface-hover)'; // default 'none'
+        if (status === 'done') bgColor = 'var(--accent-color)';
+        else if (status === 'missed') bgColor = 'var(--danger-color)';
+        else if (status === 'late') bgColor = '#f59e0b'; // amber
+        
+        // Tooltip using title attribute for now
+        const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
+        timelineHtml += `
+            <div class="timeline-day" data-date="${dateStr}" title="${dayLabel}: ${status}" 
+                 style="flex: 1; height: 24px; border-radius: var(--radius-sm); background-color: ${bgColor}; cursor: pointer; border: 1px solid var(--border-color);">
+            </div>
+        `;
+    }
+    timelineHtml += '</div>';
+
     // HTML Construction
     card.innerHTML = `
         <div class="card-header" style="align-items: center;">
@@ -129,19 +219,19 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCheckIn) {
                 ${ringHtml}
                 <div style="flex-grow: 1;">
                     <div class="card-title">${escapeHtml(goal.title)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${goal.checkIns.length} / ${target} check-ins</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${doneDays} / ${target} done</div>
                 </div>
             </div>
             ${goal.status === 'archived' ? '<span class="badge" style="margin-left: auto;">Archived</span>' : ''}
         </div>
         <div class="card-body">
-            <p style="font-size: 0.875rem; margin-bottom: 0; margin-top: 0.5rem;">Last Check-in: ${lastCheckIn}</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
+                <span style="font-weight: bold; color: var(--text-primary);">${streak > 0 ? streak + ' 🔥' : ''}</span>
+            </div>
+            ${timelineHtml}
             ${goal.showNotes && goal.notes ? `<div class="card-notes">${escapeHtml(goal.notes)}</div>` : ''}
         </div>
-        <div class="card-footer">
-            <div class="card-actions">
-                ${goal.status === 'active' ? `<button class="icon-btn check-in-btn">Check In</button>` : ''}
-            </div>
+        <div class="card-footer" style="justify-content: flex-end;">
             <div class="card-actions">
                 <button class="icon-btn edit-btn">Edit</button>
                 <button class="icon-btn archive-btn">${goal.status === 'active' ? 'Archive' : 'Restore'}</button>
@@ -151,12 +241,17 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCheckIn) {
 
     // Event Listeners
     if (goal.status === 'active') {
-        const checkInBtn = card.querySelector('.check-in-btn');
-        checkInBtn.addEventListener('click', () => onCheckIn(goal.id));
-        checkInBtn.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCheckIn(goal.id); }
+        const timelineDays = card.querySelectorAll('.timeline-day');
+        timelineDays.forEach(dayEl => {
+            dayEl.addEventListener('click', () => onCycleOccurrence(goal.id, dayEl.dataset.date));
+            dayEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCycleOccurrence(goal.id, dayEl.dataset.date); }
+            });
+            // Make keyboard focusable
+            dayEl.setAttribute('tabindex', '0');
         });
     }
+
     const editBtn = card.querySelector('.edit-btn');
     editBtn.addEventListener('click', () => onEdit(goal));
     editBtn.addEventListener('keydown', (e) => {
