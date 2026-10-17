@@ -23,11 +23,13 @@ export function saveGoal(goalData) {
                 changes: {
                     title: existing.title !== goalData.title ? goalData.title : undefined,
                     notes: existing.notes !== goalData.notes ? goalData.notes : undefined,
+                    target: existing.target !== goalData.target ? goalData.target : undefined,
                     showNotes: existing.showNotes !== goalData.showNotes ? goalData.showNotes : undefined
                 }
             });
             existing.title = goalData.title;
             existing.notes = goalData.notes;
+            existing.target = goalData.target;
             existing.showNotes = goalData.showNotes;
             existing.updatedAt = new Date().toISOString();
         }
@@ -37,6 +39,7 @@ export function saveGoal(goalData) {
             id: 'goal_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
             title: goalData.title,
             notes: goalData.notes || '',
+            target: goalData.target || 1,
             showNotes: goalData.showNotes || false,
             status: 'active', // active, archived
             createdAt: new Date().toISOString(),
@@ -99,14 +102,40 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCheckIn) {
         ? new Date(goal.checkIns[goal.checkIns.length - 1].timestamp).toLocaleDateString() 
         : 'Never';
 
+    const target = goal.target || 1;
+    const progress = Math.min(100, Math.round((goal.checkIns.length / target) * 100));
+    
+    // SVG Progress Ring (Lime on Black)
+    // 2 * pi * r = 2 * Math.PI * 16 ~= 100.5
+    const circumference = 100.5;
+    const strokeDashoffset = circumference - (progress / 100) * circumference;
+    
+    const ringHtml = `
+        <div style="position: relative; width: 40px; height: 40px; flex-shrink: 0;">
+            <svg width="40" height="40" viewBox="0 0 40 40" style="transform: rotate(-90deg);">
+                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--border-color)" stroke-width="4"></circle>
+                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--accent-color)" stroke-width="4" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" style="transition: stroke-dashoffset 0.5s ease;"></circle>
+            </svg>
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold;">
+                ${progress}%
+            </div>
+        </div>
+    `;
+
     // HTML Construction
     card.innerHTML = `
-        <div class="card-header">
-            <div class="card-title">${escapeHtml(goal.title)}</div>
-            ${goal.status === 'archived' ? '<span class="badge">Archived</span>' : ''}
+        <div class="card-header" style="align-items: center;">
+            <div style="display: flex; gap: 1rem; align-items: center; width: 100%;">
+                ${ringHtml}
+                <div style="flex-grow: 1;">
+                    <div class="card-title">${escapeHtml(goal.title)}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${goal.checkIns.length} / ${target} check-ins</div>
+                </div>
+            </div>
+            ${goal.status === 'archived' ? '<span class="badge" style="margin-left: auto;">Archived</span>' : ''}
         </div>
         <div class="card-body">
-            <p style="font-size: 0.875rem; margin-bottom: 0;">Last Check-in: ${lastCheckIn}</p>
+            <p style="font-size: 0.875rem; margin-bottom: 0; margin-top: 0.5rem;">Last Check-in: ${lastCheckIn}</p>
             ${goal.showNotes && goal.notes ? `<div class="card-notes">${escapeHtml(goal.notes)}</div>` : ''}
         </div>
         <div class="card-footer">
@@ -122,10 +151,23 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCheckIn) {
 
     // Event Listeners
     if (goal.status === 'active') {
-        card.querySelector('.check-in-btn').addEventListener('click', () => onCheckIn(goal.id));
+        const checkInBtn = card.querySelector('.check-in-btn');
+        checkInBtn.addEventListener('click', () => onCheckIn(goal.id));
+        checkInBtn.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCheckIn(goal.id); }
+        });
     }
-    card.querySelector('.edit-btn').addEventListener('click', () => onEdit(goal));
-    card.querySelector('.archive-btn').addEventListener('click', () => onToggleArchive(goal.id));
+    const editBtn = card.querySelector('.edit-btn');
+    editBtn.addEventListener('click', () => onEdit(goal));
+    editBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(goal); }
+    });
+    
+    const archiveBtn = card.querySelector('.archive-btn');
+    archiveBtn.addEventListener('click', () => onToggleArchive(goal.id));
+    archiveBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleArchive(goal.id); }
+    });
     
     return card;
 }
