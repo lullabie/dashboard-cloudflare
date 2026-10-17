@@ -8,6 +8,7 @@ import { fetchAndRenderIndicators } from './indicators.js';
 import { getGoals, saveGoal, toggleArchive, createGoalCard, cycleOccurrence } from './goals.js';
 import { getPlaces, savePlace, deletePlace, getMapEmbedUrl, createPlaceElement } from './maps.js';
 import { getCollegeData, saveCollegeItem, deleteCollegeItem, createCollegeCard } from './college.js';
+import { getJobs, saveJob, deleteJob, createJobCard } from './jobs.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize Data
@@ -59,6 +60,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const collegeItemNotesInput = document.getElementById('college-item-notes');
     const btnCreateCollegeItem = document.getElementById('btn-create-college-item');
     const btnCancelCollegeModal = document.getElementById('btn-cancel-college-modal');
+    
+    // Jobs Elements
+    const jobModal = document.getElementById('job-modal');
+    const jobModalTitle = document.getElementById('job-modal-title');
+    const jobForm = document.getElementById('job-form');
+    const jobIdInput = document.getElementById('job-id');
+    const jobCompanyInput = document.getElementById('job-company');
+    const jobRoleInput = document.getElementById('job-role');
+    const jobStatusInput = document.getElementById('job-status');
+    const jobLocationInput = document.getElementById('job-location');
+    const jobDateInput = document.getElementById('job-date');
+    const jobNotesInput = document.getElementById('job-notes');
+    const btnCreateJob = document.getElementById('btn-create-job');
+    const btnCancelJobModal = document.getElementById('btn-cancel-job-modal');
+    const jobsContainer = document.getElementById('jobs-container');
+    const jobStatusFilter = document.getElementById('job-status-filter');
+    const jobLocationFilter = document.getElementById('job-location-filter');
+
 
     // Settings Actions
     const btnExport = document.getElementById('btn-export');
@@ -214,6 +233,54 @@ document.addEventListener('DOMContentLoaded', () => {
         placeForm.reset();
     }
 
+    // --- Job Modal Operations ---
+    function openJobModal(job = null) {
+        if (job) {
+            jobModalTitle.textContent = 'Edit Job';
+            jobIdInput.value = job.id;
+            jobCompanyInput.value = job.company;
+            jobRoleInput.value = job.role;
+            jobStatusInput.value = job.status;
+            jobLocationInput.value = job.location;
+            jobDateInput.value = job.date;
+            jobNotesInput.value = job.notes || '';
+        } else {
+            jobModalTitle.textContent = 'Add Job';
+            jobForm.reset();
+            jobIdInput.value = '';
+            jobDateInput.value = new Date().toISOString().split('T')[0];
+        }
+        jobModal.classList.remove('hidden');
+        jobCompanyInput.focus();
+    }
+
+    function closeJobModal() {
+        jobModal.classList.add('hidden');
+        jobForm.reset();
+    }
+
+    btnCreateJob.addEventListener('click', () => openJobModal());
+    btnCancelJobModal.addEventListener('click', closeJobModal);
+
+    jobForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const jobData = {
+            id: jobIdInput.value || null,
+            company: jobCompanyInput.value.trim(),
+            role: jobRoleInput.value.trim(),
+            status: jobStatusInput.value,
+            location: jobLocationInput.value,
+            date: jobDateInput.value,
+            notes: jobNotesInput.value.trim()
+        };
+        saveJob(jobData);
+        closeJobModal();
+        refreshUI();
+    });
+
+    jobStatusFilter.addEventListener('change', () => refreshUI());
+    jobLocationFilter.addEventListener('change', () => refreshUI());
+
     // --- College Modal Operations ---
     function openCollegeModal(item = null, type = 'timetable') {
         if (item) {
@@ -269,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!modal.classList.contains('hidden')) closeModal();
             if (!placeModal.classList.contains('hidden')) closePlaceModal();
             if (!collegeModal.classList.contains('hidden')) closeCollegeModal();
+            if (!jobModal.classList.contains('hidden')) closeJobModal();
         }
     });
 
@@ -313,6 +381,13 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshUI();
     };
     
+    // --- Job Callbacks ---
+    const handleEditJob = (job) => openJobModal(job);
+    const handleDeleteJob = (jobId) => {
+        deleteJob(jobId);
+        refreshUI();
+    };
+
     // --- College Callbacks ---
     const handleEditCollege = (item, type) => openCollegeModal(item, type);
     const handleDeleteCollege = (type, itemId) => {
@@ -389,6 +464,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        // Jobs View
+        const allJobs = getJobs() || [];
+        const activeStatusFilter = jobStatusFilter.value;
+        const activeLocationFilter = jobLocationFilter.value;
+        let filteredJobs = allJobs;
+        if (activeStatusFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.status === activeStatusFilter); }
+        if (activeLocationFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.location === activeLocationFilter); }
+        filteredJobs.sort((a, b) => new Date(b.date) - new Date(a.date));
+        jobsContainer.innerHTML = '';
+        if (filteredJobs.length === 0) {
+            jobsContainer.innerHTML = '<div class="empty-state">No jobs found matching the criteria.</div>';
+        } else {
+            filteredJobs.forEach(job => { jobsContainer.appendChild(createJobCard(job, handleEditJob, handleDeleteJob)); });
+        }
+
         // College View
         const collegeData = getCollegeData();
         ['timetable', 'assignments', 'exams', 'fees'].forEach(type => {

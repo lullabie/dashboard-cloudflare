@@ -11,6 +11,7 @@ const APP_IDENTIFIER = 'dashboard';
 const SEED_STATE = {
     goals: [],
     places: [],
+    jobs: [],
     college: {
         timetable: [],
         assignments: [],
