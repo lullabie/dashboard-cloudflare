@@ -1,1 +1,130 @@
-LyoqCiAqIFN0b3JhZ2UgYW5kIER1cmFiaWxpdHkgTGF5ZXIKICogTWFuYWdlcyBsb2NhbFN0b3JhZ2UsIHNlZWRlZCBzdGF0ZSwgYW5kIG9uZS1jbGljayBKU09OIGV4cG9ydC9pbXBvcnQuCiAqLwoKY29uc3QgU1RPUkFHRV9LRVkgPSAnZGFzaGJvYXJkX2RhdGEnOwpjb25zdCBTQ0hFTUFfVkVSU0lPTiA9IDE7CmNvbnN0IEFQUF9JREVOVElGSUVSID0gJ2Rhc2hib2FyZCc7CgovLyBTZWVkIHN0YXRlIHdoZW4gbm8gZGF0YSBleGlzdHMKY29uc3QgU0VFRF9TVEFURSA9IHsKICAgIGdvYWxzOiBbXQp9OwoKLy8gRW5zdXJlIGRhdGEgaXMgbG9hZGVkCmxldCBjdXJyZW50RGF0YSA9IG51bGw7CgpleHBvcnQgZnVuY3Rpb24gaW5pdFN0b3JlKCkgewogICAgY29uc3QgcmF3RGF0YSA9IGxvY2FsU3RvcmFnZS5nZXRJdGVtKFNUT1JBR0VfS0VZKTsKICAgIGlmICghcmF3RGF0YSkgewogICAgICAgIGN1cnJlbnREYXRhID0gSlNPTi5wYXJzZShKU09OLnN0cmluZ2lmeShTRUVEX1NUQVRFKSk7CiAgICAgICAgX3NhdmUoKTsKICAgIH0gZWxzZSB7CiAgICAgICAgdHJ5IHsKICAgICAgICAgICAgY3VycmVudERhdGEgPSBKU09OLnBhcnNlKHJhd0RhdGEpOwogICAgICAgIH0gY2F0Y2ggKGUpIHsKICAgICAgICAgICAgY29uc29sZS5lcnJvcigiRmFpbGVkIHRvIHBhcnNlIGxvY2FsIHN0b3JhZ2UsIGZhbGxpbmcgYmFjayB0byBzZWVkIiwgZSk7CiAgICAgICAgICAgIGN1cnJlbnREYXRhID0gSlNPTi5wYXJzZShKU09OLnN0cmluZ2lmeShTRUVEX1NUQVRFKSk7CiAgICAgICAgfQogICAgfQp9CgpmdW5jdGlvbiBfc2F2ZSgpIHsKICAgIGlmICghY3VycmVudERhdGEpIHJldHVybjsKICAgIHRyeSB7CiAgICAgICAgbG9jYWxTdG9yYWdlLnNldEl0ZW0oU1RPUkFHRV9LRVksIEpTT04uc3RyaW5naWZ5KGN1cnJlbnREYXRhKSk7CiAgICB9IGNhdGNoIChlKSB7CiAgICAgICAgLy8gSGFuZGxlIHF1b3RhIGV4Y2VlZGVkIGdyYWNlZnVsbHkgKDUgTWlCIGJ1ZGdldCkKICAgICAgICBjb25zb2xlLmVycm9yKCJGYWlsZWQgdG8gc2F2ZSBkYXRhLiBCdWRnZXQgbWlnaHQgYmUgZXhjZWVkZWQuIiwgZSk7CiAgICAgICAgYWxlcnQoIldhcm5pbmc6IENvdWxkIG5vdCBzYXZlIGRhdGEuIEJyb3dzZXIgc3RvcmFnZSBsaW1pdCBtaWdodCBiZSByZWFjaGVkLiIpOwogICAgfQp9CgpleHBvcnQgZnVuY3Rpb24gZ2V0RGF0YSgpIHsKICAgIGlmICghY3VycmVudERhdGEpIGluaXRTdG9yZSgpOwogICAgcmV0dXJuIGN1cnJlbnREYXRhOwp9CgpleHBvcnQgZnVuY3Rpb24gc2F2ZURhdGEoZGF0YSkgewogICAgY3VycmVudERhdGEgPSBkYXRhOwogICAgX3NhdmUoKTsKfQoKLyoqCiAqIERvd25sb2FkcyBhIEpTT04gZmlsZSB3aXRoIHRoZSBjdXJyZW50IGRhdGEgd3JhcHBlZCBpbiBhbiBlbnZlbG9wZS4KICovCmV4cG9ydCBmdW5jdGlvbiBleHBvcnREYXRhKCkgewogICAgaWYgKCFjdXJyZW50RGF0YSkgaW5pdFN0b3JlKCk7CiAgICAKICAgIGNvbnN0IGVudmVsb3BlID0gewogICAgICAgIGFwcDogQVBQX0lERU5USUZJRVIsCiAgICAgICAgc2NoZW1hVmVyc2lvbjogU0NIRU1BX1ZFUlNJT04sCiAgICAgICAgZXhwb3J0ZWRBdDogbmV3IERhdGUoKS50b0lTT1N0cmluZygpLAogICAgICAgIGRhdGE6IGN1cnJlbnREYXRhCiAgICB9OwogICAgCiAgICBjb25zdCBibG9iID0gbmV3IEJsb2IoW0pTT04uc3RyaW5naWZ5KGVudmVsb3BlLCBudWxsLCAyKV0sIHsgdHlwZTogJ2FwcGxpY2F0aW9uL2pzb24nIH0pOwogICAgY29uc3QgdXJsID0gVVJMLmNyZWF0ZU9iamVjdFVSTChibG9iKTsKICAgIAogICAgY29uc3QgYSA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2EnKTsKICAgIGEuaHJlZiA9IHVybDsKICAgIGEuZG93bmxvYWQgPSBgZGFzaGJvYXJkLWV4cG9ydC0ke25ldyBEYXRlKCkudG9JU09TdHJpbmcoKS5zbGljZSgwLCAxMCl9Lmpzb25gOwogICAgZG9jdW1lbnQuYm9keS5hcHBlbmRDaGlsZChhKTsKICAgIGEuY2xpY2soKTsKICAgIAogICAgLy8gQ2xlYW51cAogICAgc2V0VGltZW91dCgoKSA9PiB7CiAgICAgICAgZG9jdW1lbnQuYm9keS5yZW1vdmVDaGlsZChhKTsKICAgICAgICBVUkwucmV2b2tlT2JqZWN0VVJMKHVybCk7CiAgICB9LCAxMDApOwp9CgovKioKICogUmVhZHMgYSBKU09OIGZpbGUsIHZhbGlkYXRlcyB0aGUgZW52ZWxvcGUsIGFuZCBzYWZlbHkgb3ZlcndyaXRlcyBsb2NhbCBzdG9yYWdlLgogKiBAcGFyYW0ge0ZpbGV9IGZpbGUgLSBUaGUgc2VsZWN0ZWQgSlNPTiBmaWxlCiAqIEBwYXJhbSB7RnVuY3Rpb259IG9uQ29tcGxldGUgLSBDYWxsYmFjayBhZnRlciBpbXBvcnQKICovCmV4cG9ydCBmdW5jdGlvbiBpbXBvcnREYXRhKGZpbGUsIG9uQ29tcGxldGUpIHsKICAgIGNvbnN0IHJlYWRlciA9IG5ldyBGaWxlUmVhZGVyKCk7CiAgICAKICAgIHJlYWRlci5vbmxvYWQgPSAoZSkgPT4gewogICAgICAgIHRyeSB7CiAgICAgICAgICAgIGNvbnN0IHJlc3VsdCA9IEpTT04ucGFyc2UoZS50YXJnZXQucmVzdWx0KTsKICAgICAgICAgICAgCiAgICAgICAgICAgIC8vIExvdWQgdmFsaWRhdGlvbgogICAgICAgICAgICBpZiAoIXJlc3VsdCB8fCB0eXBlb2YgcmVzdWx0ICE9PSAnb2JqZWN0JykgewogICAgICAgICAgICAgICAgdGhyb3cgbmV3IEVycm9yKCJJbnZhbGlkIEpTT04gZm9ybWF0Iik7CiAgICAgICAgICAgIH0KICAgICAgICAgICAgaWYgKHJlc3VsdC5hcHAgIT09IEFQUF9JREVOVElGSUVSKSB7CiAgICAgICAgICAgICAgICB0aHJvdyBuZXcgRXJyb3IoYFVua25vd24gYXBwIGlkZW50aWZpZXI6ICR7cmVzdWx0LmFwcH0uIEV4cGVjdGVkICcke0FQUF9JREVOVElGSUVSfScuYCk7CiAgICAgICAgICAgIH0KICAgICAgICAgICAgaWYgKHJlc3VsdC5zY2hlbWFWZXJzaW9uICE9PSBTQ0hFTUFfVkVSU0lPTikgewogICAgICAgICAgICAgICAgdGhyb3cgbmV3IEVycm9yKGBVbmtub3duIHNjaGVtYSB2ZXJzaW9uOiAke3Jlc3VsdC5zY2hlbWFWZXJzaW9ufS4gU3VwcG9ydGVkIHZlcnNpb24gaXMgJHtTQ0hFTUFfVkVSU0lPTn0uYCk7CiAgICAgICAgICAgIH0KICAgICAgICAgICAgaWYgKCFyZXN1bHQuZGF0YSB8fCB0eXBlb2YgcmVzdWx0LmRhdGEgIT09ICdvYmplY3QnKSB7CiAgICAgICAgICAgICAgICB0aHJvdyBuZXcgRXJyb3IoIk1pc3Npbmcgb3IgaW52YWxpZCAnZGF0YScgcGF5bG9hZCBpbiBleHBvcnQgZmlsZS4iKTsKICAgICAgICAgICAgfQogICAgICAgICAgICAKICAgICAgICAgICAgY29uc3QgZ29hbENvdW50ID0gQXJyYXkuaXNBcnJheShyZXN1bHQuZGF0YS5nb2FscykgPyByZXN1bHQuZGF0YS5nb2Fscy5sZW5ndGggOiAwOwogICAgICAgICAgICBjb25zdCBwcmV2aWV3TXNnID0gYFJlc3RvcmUgcHJldmlldzpcblxuRXhwb3J0ZWQgYXQ6ICR7cmVzdWx0LmV4cG9ydGVkQXR9XG5Hb2FscyBmb3VuZDogJHtnb2FsQ291bnR9XG5cbldhcm5pbmc6IFRoaXMgd2lsbCBjb21wbGV0ZWx5IHJlcGxhY2UgeW91ciBjdXJyZW50IGxvY2FsIGRhdGEuIEFyZSB5b3Ugc3VyZSB5b3Ugd2FudCB0byBwcm9jZWVkP2A7CiAgICAgICAgICAgIAogICAgICAgICAgICBpZiAoY29uZmlybShwcmV2aWV3TXNnKSkgewogICAgICAgICAgICAgICAgY3VycmVudERhdGEgPSByZXN1bHQuZGF0YTsKICAgICAgICAgICAgICAgIF9zYXZlKCk7CiAgICAgICAgICAgICAgICBhbGVydCgiRGF0YSBpbXBvcnRlZCBzdWNjZXNzZnVsbHkuIik7CiAgICAgICAgICAgICAgICBpZiAob25Db21wbGV0ZSkgb25Db21wbGV0ZSgpOwogICAgICAgICAgICB9CiAgICAgICAgICAgIAogICAgICAgIH0gY2F0Y2ggKGVycikgewogICAgICAgICAgICBhbGVydChgSW1wb3J0IGZhaWxlZDogJHtlcnIubWVzc2FnZX1gKTsKICAgICAgICAgICAgY29uc29sZS5lcnJvcigiSW1wb3J0IGVycm9yOiIsIGVycik7CiAgICAgICAgfQogICAgfTsKICAgIAogICAgcmVhZGVyLm9uZXJyb3IgPSAoKSA9PiB7CiAgICAgICAgYWxlcnQoIkZhaWxlZCB0byByZWFkIGZpbGUuIik7CiAgICB9OwogICAgCiAgICByZWFkZXIucmVhZEFzVGV4dChmaWxlKTsKfQ==
+/**
+ * Storage and Durability Layer
+ * Manages localStorage, seeded state, and one-click JSON export/import.
+ */
+
+const STORAGE_KEY = 'dashboard_data';
+const SCHEMA_VERSION = 1;
+const APP_IDENTIFIER = 'dashboard';
+
+// Seed state when no data exists
+const SEED_STATE = {
+    goals: []
+};
+
+// Ensure data is loaded
+let currentData = null;
+
+export function initStore() {
+    const rawData = localStorage.getItem(STORAGE_KEY);
+    if (!rawData) {
+        currentData = JSON.parse(JSON.stringify(SEED_STATE));
+        _save();
+    } else {
+        try {
+            currentData = JSON.parse(rawData);
+        } catch (e) {
+            console.error("Failed to parse local storage, falling back to seed", e);
+            currentData = JSON.parse(JSON.stringify(SEED_STATE));
+        }
+    }
+}
+
+function _save() {
+    if (!currentData) return;
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+    } catch (e) {
+        // Handle quota exceeded gracefully (5 MiB budget)
+        console.error("Failed to save data. Budget might be exceeded.", e);
+        alert("Warning: Could not save data. Browser storage limit might be reached.");
+    }
+}
+
+export function getData() {
+    if (!currentData) initStore();
+    return currentData;
+}
+
+export function saveData(data) {
+    currentData = data;
+    _save();
+}
+
+/**
+ * Downloads a JSON file with the current data wrapped in an envelope.
+ */
+export function exportData() {
+    if (!currentData) initStore();
+    
+    const envelope = {
+        app: APP_IDENTIFIER,
+        schemaVersion: SCHEMA_VERSION,
+        exportedAt: new Date().toISOString(),
+        data: currentData
+    };
+    
+    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Cleanup
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 100);
+}
+
+/**
+ * Reads a JSON file, validates the envelope, and safely overwrites local storage.
+ * @param {File} file - The selected JSON file
+ * @param {Function} onComplete - Callback after import
+ */
+export function importData(file, onComplete) {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+        try {
+            const result = JSON.parse(e.target.result);
+            
+            // Loud validation
+            if (!result || typeof result !== 'object') {
+                throw new Error("Invalid JSON format");
+            }
+            if (result.app !== APP_IDENTIFIER) {
+                throw new Error(`Unknown app identifier: ${result.app}. Expected '${APP_IDENTIFIER}'.`);
+            }
+            if (result.schemaVersion !== SCHEMA_VERSION) {
+                throw new Error(`Unknown schema version: ${result.schemaVersion}. Supported version is ${SCHEMA_VERSION}.`);
+            }
+            if (!result.data || typeof result.data !== 'object') {
+                throw new Error("Missing or invalid 'data' payload in export file.");
+            }
+            
+            const goalCount = Array.isArray(result.data.goals) ? result.data.goals.length : 0;
+            const previewMsg = `Restore preview:\n\nExported at: ${result.exportedAt}\nGoals found: ${goalCount}\n\nWarning: This will completely replace your current local data. Are you sure you want to proceed?`;
+            
+            if (confirm(previewMsg)) {
+                currentData = result.data;
+                _save();
+                alert("Data imported successfully.");
+                if (onComplete) onComplete();
+            }
+            
+        } catch (err) {
+            alert(`Import failed: ${err.message}`);
+            console.error("Import error:", err);
+        }
+    };
+    
+    reader.onerror = () => {
+        alert("Failed to read file.");
+    };
+    
+    reader.readAsText(file);
+}
