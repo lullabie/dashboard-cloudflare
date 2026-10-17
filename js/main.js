@@ -3,7 +3,8 @@
  */
 
 import { initStore, exportData, importData } from './store.js';
-import { renderCountdowns } from './countdowns.js';
+import { renderCountdowns, renderRadar } from './countdowns.js';
+import { fetchAndRenderIndicators } from './indicators.js';
 import { getGoals, saveGoal, toggleArchive, checkInGoal, createGoalCard } from './goals.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const goalIdInput = document.getElementById('goal-id');
     const goalTitleInput = document.getElementById('goal-title');
     const goalNotesInput = document.getElementById('goal-notes');
+    const goalTargetInput = document.getElementById('goal-target');
     const goalShowNotesInput = document.getElementById('goal-show-notes');
     const btnCancelModal = document.getElementById('btn-cancel-modal');
     const btnCreateGoal = document.getElementById('btn-create-goal');
@@ -36,6 +38,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Routing / Navigation ---
     navBtns.forEach(btn => {
         btn.addEventListener('click', () => {
+            handleNavClick(btn);
+        });
+        btn.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleNavClick(btn);
+            }
+        });
+    });
+
+    function handleNavClick(btn) {
             // Update active state on buttons
             navBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -54,12 +67,22 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Re-render data when changing views
             refreshUI();
-        });
-    });
+    }
 
     // --- Goal Tabs ---
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
+            handleTabClick(btn);
+        });
+        btn.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleTabClick(btn);
+            }
+        });
+    });
+
+    function handleTabClick(btn) {
             tabBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             
@@ -73,8 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     c.classList.add('hidden');
                 }
             });
-        });
-    });
+    }
 
     // --- Settings / Durability ---
     btnExport.addEventListener('click', () => {
@@ -98,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             goalIdInput.value = goal.id;
             goalTitleInput.value = goal.title;
             goalNotesInput.value = goal.notes || '';
+            goalTargetInput.value = goal.target || 1;
             goalShowNotesInput.checked = goal.showNotes || false;
         } else {
             modalTitle.textContent = 'Create Goal';
@@ -122,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: goalIdInput.value || null,
             title: goalTitleInput.value.trim(),
             notes: goalNotesInput.value.trim(),
+            target: parseInt(goalTargetInput.value) || 1,
             showNotes: goalShowNotesInput.checked
         };
         
@@ -146,6 +170,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function refreshUI() {
         // Countdowns
         renderCountdowns('countdowns-container');
+        
+        // Radar
+        renderRadar('radar-container');
+        
+        // Indicators (async fire-and-forget)
+        fetchAndRenderIndicators('indicators-container');
         
         // Goals Data
         const allGoals = getGoals();
