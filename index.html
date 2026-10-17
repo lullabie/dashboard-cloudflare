@@ -22,6 +22,12 @@
             <h2>Countdowns</h2>
             <div id="countdowns-container" class="grid-container"></div>
             
+            <h2>Deadline Radar</h2>
+            <div id="radar-container" class="grid-container"></div>
+            
+            <h2>Indicators</h2>
+            <div id="indicators-container" class="grid-container"></div>
+            
             <h2>Today's Priorities</h2>
             <div id="today-goals-container" class="grid-container">
                 <div class="empty-state">No active goals for today. Enjoy your day!</div>
@@ -72,6 +78,10 @@
                 <div class="form-group">
                     <label for="goal-notes">Notes</label>
                     <textarea id="goal-notes" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="goal-target">Target Check-ins (Number)</label>
+                    <input type="number" id="goal-target" min="1" value="1">
                 </div>
                 <div class="form-group checkbox-group">
                     <input type="checkbox" id="goal-show-notes">
