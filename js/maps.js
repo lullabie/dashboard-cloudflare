@@ -39,46 +39,75 @@ export function deletePlace(placeId) {
     }
 }
 
+function isValidCoordinate(lat, lng) {
+    const latFloat = parseFloat(lat);
+    const lngFloat = parseFloat(lng);
+    if (!Number.isFinite(latFloat) || !Number.isFinite(lngFloat)) return false;
+    if (latFloat < -90 || latFloat > 90) return false;
+    if (lngFloat < -180 || lngFloat > 180) return false;
+    return true;
+}
+
 /**
  * Generates an OpenStreetMap embed URL.
  * Calculates a bounding box encompassing all places, or centers on a specific place.
  * Adds a marker if an active place is provided.
  */
 export function getMapEmbedUrl(places, activePlace = null) {
+    if (activePlace && !isValidCoordinate(activePlace.lat, activePlace.lng)) {
+        return null;
+    }
+
     if (!places || places.length === 0) return null;
+
+    const validPlaces = places.filter(p => isValidCoordinate(p.lat, p.lng));
+    if (validPlaces.length === 0) return null;
 
     let baseUrl = 'https://www.openstreetmap.org/export/embed.html';
     let params = new URLSearchParams();
 
-    if (places.length > 0) {
-        // Calculate bounding box
-        let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-        places.forEach(p => {
-            const lat = parseFloat(p.lat);
-            const lng = parseFloat(p.lng);
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-        });
+    // Calculate bounding box
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    validPlaces.forEach(p => {
+        const lat = parseFloat(p.lat);
+        const lng = parseFloat(p.lng);
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+    });
 
-        // Add some padding to the bounding box
-        const latPadding = Math.max(0.01, (maxLat - minLat) * 0.1);
-        const lngPadding = Math.max(0.01, (maxLng - minLng) * 0.1);
-        
-        const bbox = [
-            minLng - lngPadding,
-            minLat - latPadding,
-            maxLng + lngPadding,
-            maxLat + latPadding
-        ].join(',');
-        
-        params.append('bbox', bbox);
-        params.append('layer', 'mapnik');
-    }
+    // Add some padding to the bounding box
+    const latPadding = Math.max(0.01, (maxLat - minLat) * 0.1);
+    const lngPadding = Math.max(0.01, (maxLng - minLng) * 0.1);
+    
+    let finalMinLat = minLat - latPadding;
+    let finalMaxLat = maxLat + latPadding;
+    let finalMinLng = minLng - lngPadding;
+    let finalMaxLng = maxLng + lngPadding;
+    
+    // Clamp to valid ranges
+    finalMinLat = Math.max(-90, Math.min(90, finalMinLat));
+    finalMaxLat = Math.max(-90, Math.min(90, finalMaxLat));
+    finalMinLng = Math.max(-180, Math.min(180, finalMinLng));
+    finalMaxLng = Math.max(-180, Math.min(180, finalMaxLng));
+    
+    // Assert min <= max to avoid inverted bbox
+    if (finalMinLat > finalMaxLat) finalMinLat = finalMaxLat;
+    if (finalMinLng > finalMaxLng) finalMinLng = finalMaxLng;
+    
+    const bbox = [
+        finalMinLng,
+        finalMinLat,
+        finalMaxLng,
+        finalMaxLat
+    ].join(',');
+    
+    params.append('bbox', bbox);
+    params.append('layer', 'mapnik');
 
     if (activePlace) {
-        params.append('marker', `${activePlace.lat},${activePlace.lng}`);
+        params.append('marker', `${parseFloat(activePlace.lat)},${parseFloat(activePlace.lng)}`);
     }
 
     return `${baseUrl}?${params.toString()}`;
