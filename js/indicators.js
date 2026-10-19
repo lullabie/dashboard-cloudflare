@@ -30,6 +30,12 @@ function setCachedData(data) {
     }
 }
 
+function isValidNumber(val) {
+    if (val === null || val === undefined || String(val).trim() === '') return false;
+    const num = Number(val);
+    return isFinite(num);
+}
+
 async function fetchIndicator(seriesId) {
     // Fetch last 2 observations to calculate day-over-day change
     const url = `${BOC_API_BASE}/${seriesId}/json?recent=2`;
@@ -55,13 +61,22 @@ async function fetchIndicator(seriesId) {
     
     if (data.observations.length > 1) {
         previous = data.observations[data.observations.length - 2];
-        const latestVal = parseFloat(latest[seriesId].v);
-        const previousVal = parseFloat(previous[seriesId].v);
+        
+        if (!isValidNumber(latest[seriesId].v) || !isValidNumber(previous[seriesId].v)) {
+            throw new Error('Malformed numeric input');
+        }
+        
+        const latestVal = Number(latest[seriesId].v);
+        const previousVal = Number(previous[seriesId].v);
         change = latestVal - previousVal;
+    } else {
+        if (!isValidNumber(latest[seriesId].v)) {
+            throw new Error('Malformed numeric input');
+        }
     }
     
     return {
-        value: parseFloat(latest[seriesId].v).toFixed(4),
+        value: Number(latest[seriesId].v).toFixed(4),
         change: change !== null ? change.toFixed(4) : 'N/A',
         asOfDate: latest.d,
         timestamp: Date.now()
@@ -147,57 +162,41 @@ export async function fetchAndRenderIndicators(containerId) {
         }
     }
     
-    // Initial Render from cache if available, showing "Stale" if needsUpdate is true
-    // Wait, the requirement says "Cache the last good values in localStorage; on fetch failure show a "stale" badge with the cached values, never blank."
-    // It doesn't say show stale just because it's old BEFORE fetching. We will try fetching, if it fails, then we mark it stale.
-    
-    // Clear container and show skeleton or just empty?
-    // "Fetch must never block page load (async, fire-and-forget with then-update)."
-    
-    // Optimistically render cache without stale badge first
-    renderCurrentState(container, cache, false);
+    // Initial Render from cache if available
+    renderCurrentState(container, cache, new Set());
     
     if (needsUpdate || Object.keys(cache).length < INDICATORS.length) {
+        const failedSeries = new Set();
         const fetches = INDICATORS.map(async (ind) => {
             try {
                 const data = await fetchIndicator(ind.id);
                 cache[ind.id] = data;
-                return { id: ind.id, success: true };
             } catch (error) {
-                console.error(`Failed to fetch ${ind.id}:`, error);
-                return { id: ind.id, success: false };
+                // Do not rethrow so Promise.all won't reject entirely
+                failedSeries.add(ind.id);
             }
         });
         
-        const results = await Promise.allSettled(fetches);
+        await Promise.all(fetches);
         
-        let fetchFailed = false;
-        results.forEach(res => {
-            if (res.status === 'rejected' || (res.status === 'fulfilled' && !res.value.success)) {
-                fetchFailed = true;
-            }
-        });
-        
-        if (!fetchFailed) {
-            setCachedData(cache);
-        }
+        // Always save to cache, the failed series will just keep their old values
+        setCachedData(cache);
         
         // Re-render with new data or mark stale if failed
-        renderCurrentState(container, cache, fetchFailed);
+        renderCurrentState(container, cache, failedSeries);
     }
 }
 
-function renderCurrentState(container, cache, fetchFailed) {
+function renderCurrentState(container, cache, failedSeries) {
     container.innerHTML = '';
     
     INDICATORS.forEach(ind => {
         const cachedData = cache[ind.id];
         if (cachedData) {
-            // It's stale if fetch failed OR if it's older than TTL (though if fetch failed it implicitly might be old)
-            const isStale = fetchFailed; 
+            const isStale = failedSeries.has(ind.id); 
             container.appendChild(createIndicatorTile(ind, cachedData, isStale));
         } else {
-            // Completely missing data + fetch failed
+            // Completely missing data + fetch failed (implicitly)
             container.appendChild(createErrorTile(ind));
         }
     });
