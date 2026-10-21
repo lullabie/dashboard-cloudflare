@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// run-review-tests.mjs — the single review test command (Track E, v4).
+// run-review-tests.mjs — the single review test command (Track E, v4; v5 release gate added).
 //
 // Usage: node scripts/run-review-tests.mjs <assembled-tree-path>
 //
@@ -13,9 +13,17 @@
 // (excluding .git and node_modules).
 // Special case: __tests__/store_validation.test.js is the legacy store
 // acceptance runner and requires the store.js path as an argument.
+//
+// V5 RELEASE GATE: exit 0 means release PASS. Lane tests alone cannot
+// produce it. The gate also requires every real-browser TEST-ID in
+// docs/ACCEPTANCE.md to be recorded as PASS in the tree at
+// qa/v4/browser-results.json (JSON object: TEST-ID -> "PASS"). A
+// missing file, a missing ID, or any status other than PASS (for
+// example "NOT RUN" or "FAIL") makes the gate fail and the exit
+// nonzero. Lane-test output and wording are unchanged from v4.
 
 import { spawnSync } from 'node:child_process';
-import { readdirSync, statSync, existsSync } from 'node:fs';
+import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs';
 import { join, relative, basename, resolve } from 'node:path';
 
 const tree = process.argv[2] ? resolve(process.argv[2]) : process.cwd();
@@ -68,4 +76,30 @@ for (const file of tests) {
 }
 
 console.log(`\nSummary: ${tests.length - failed}/${tests.length} test file(s) passed, ${failed} failed.`);
-process.exit(failed > 0 ? 1 : 0);
+
+// V5 release gate: required real-browser cases (docs/ACCEPTANCE.md).
+const REQUIRED_BROWSER_IDS = [
+  'TEST-UI-001', 'TEST-UI-002',
+  'TEST-STORE-001', 'TEST-STORE-002', 'TEST-STORE-003', 'TEST-STORE-004',
+  'TEST-FEEDS-001', 'TEST-FEEDS-002', 'TEST-FEEDS-003',
+  'TEST-HABITS-001',
+];
+const resultsPath = join(tree, 'qa', 'v4', 'browser-results.json');
+let browserResults = null;
+if (existsSync(resultsPath)) {
+  try { browserResults = JSON.parse(readFileSync(resultsPath, 'utf8')); }
+  catch { browserResults = null; }
+}
+const gateProblems = [];
+for (const id of REQUIRED_BROWSER_IDS) {
+  const status = browserResults ? browserResults[id] : undefined;
+  if (status !== 'PASS') gateProblems.push(`${id}: ${status === undefined ? 'no result recorded' : status}`);
+}
+if (gateProblems.length > 0) {
+  console.log(`\n[RELEASE GATE] NOT PASS — required browser cases have not passed:`);
+  for (const p of gateProblems) console.log(`  ${p}`);
+  if (!existsSync(resultsPath)) console.log(`  (missing file: qa/v4/browser-results.json)`);
+} else {
+  console.log(`\n[RELEASE GATE] PASS — all ${REQUIRED_BROWSER_IDS.length} required browser cases recorded PASS.`);
+}
+process.exit(failed > 0 || gateProblems.length > 0 ? 1 : 0);
