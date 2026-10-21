@@ -135,10 +135,13 @@ function validateImportData(data) {
     assertRecordArray(n.manual ?? [], 'news.manual');
 }
 
+let lastNormalizeRecovery = [];
 function normalizeImportData(data) {
     const out = { ...data };
     for (const k of ['goals', 'places', 'jobs', 'investments', 'habits', 'indicators']) {
+        lastNormalizeRecovery = [];
         if (!(k in out)) out[k] = [];
+        else if (!Array.isArray(out[k])) { out[k] = []; lastNormalizeRecovery.push(k); }
     }
     out.college = {
         timetable: [], assignments: [], exams: [], fees: [],
@@ -213,6 +216,10 @@ export async function initStore() {
                     } else {
                         legacyData = defaultData();
                     }
+                    migratePlaces(legacyData);
+                        // V5-STORE-01: validate the repaired shape before the first durable put.
+                        validateImportData(legacyData);
+                        const legacyRecovery = lastNormalizeRecovery.slice();
 
                     adoptedRecord = {
                         id: RECORD_ID,
@@ -221,7 +228,7 @@ export async function initStore() {
                         revision: 1,
                         savedAt: new Date().toISOString(),
                         data: legacyData,
-                        envelopeExtras: {}
+                        envelopeExtras: legacyRecovery.length ? { legacyRecovery } : {}
                     };
                     store.put(adoptedRecord);
                 }
@@ -427,7 +434,21 @@ export function importData(file, onComplete) {
         return;
     }
     const reader = new FileReader();
+    // V5-STORE-02: settle exactly once on read failure or abort (onload never fires then).
+    reader.onerror = () => {
+        const res = { error: (reader.error || new Error('File read failed')), committed: false, conflict: false };
+        if (onComplete) {
+            try { onComplete(res); } catch (cbErr) { console.error('Import onComplete callback failed:', cbErr); }
+        }
+    };
+    reader.onabort = () => {
+        const res = { cancelled: true, committed: false, conflict: false };
+        if (onComplete) {
+            try { onComplete(res); } catch (cbErr) { console.error('Import onComplete callback failed:', cbErr); }
+        }
+    };
     reader.onload = async (e) => {
+        let finalResult = null;
         try {
             const parsed = JSON.parse(e.target.result);
             // Re-check schema validation to strictly enforce rules
@@ -449,7 +470,10 @@ export function importData(file, onComplete) {
                 `Import backup from ${parsed.exportedAt || 'unknown date'}?\n` +
                 'This REPLACES all current dashboard data. This cannot be undone.'
             );
-            if (!confirmed) return;
+            if (!confirmed) {
+                finalResult = { cancelled: true, committed: false, conflict: false };
+                return;
+            }
             
             const extras = { ...parsed };
             delete extras.data;
@@ -519,10 +543,11 @@ export function importData(file, onComplete) {
             });
             
             alert('Data imported successfully!');
-            if (onComplete) onComplete({ committed: true, conflict: false });
+            finalResult = { committed: true, conflict: false };
         } catch (err) {
             console.error('Import error:', err);
             if (err && err.message && err.message.includes('Conflict')) {
+                finalResult = { conflict: true, committed: false };
                 try {
                     // Try parsing again for the fallback block scope if payload isn't populated via try block closure reliably
                     let p = JSON.parse(e.target.result).data;
@@ -534,7 +559,12 @@ export function importData(file, onComplete) {
                     alert('Import blocked: another tab updated the data first. Your draft is preserved in memory and can be exported manually.');
                 }
             } else {
+                finalResult = { error: err, committed: false, conflict: false };
                 alert('Import failed: ' + (err && err.message ? err.message : err));
+            }
+        } finally {
+            if (onComplete && finalResult) {
+                try { onComplete(finalResult); } catch(cbErr) { console.error('Import onComplete callback failed:', cbErr); }
             }
         }
     };
