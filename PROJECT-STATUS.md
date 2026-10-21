@@ -1,51 +1,84 @@
 # Dashboard project status
 
-Updated: 2026-10-16. Stage: new private repository; design review pending.
+Updated: 2026-10-21. Authority for current state. Supersedes the
+2026-10-16 status (which described a pre-build repository and a proposed
+Cloudflare backend; that plan is historical, see docs/plan-b/).
 
-The user requested a new repository and a clean project context, and asked
-that Muse and Jules be told. The repository is
-[dashboard-cloudflare](https://github.com/lullabie/dashboard-cloudflare), with
-initial main commit `33360347acada8af00d08e4c85d06c536197cdbf`. This authorization
-does not extend to app implementation, Cloudflare resources or release.
-Muse and Jules were notified in their existing project conversations; no
-implementation was dispatched. Jules acknowledged the handoff and preserved the
-old task. The user confirmed enabling all-repository GitHub access for Jules and
-selecting this repository; checkout/read execution remains to be verified in a
-later approved task. Muse confirmed read access at the initial
-commit. Later-commit review and write access remain separate evidence. Use
-the verified [coordination issue #1](https://github.com/lullabie/dashboard-cloudflare/issues/1).
+## Current state
 
-The earlier repository and PRs stay intact. This is a reviewed context
-transfer, not a full source migration. See [context and provenance](docs/CONTEXT.md).
-Cloudflare research is complete; reuse it. The old Muse hosting requirement
-is superseded. Muse is optional support, not a hosting or approval dependency.
-Do not restart the prior validator repair or dispatch Jules.
+- Stack: vanilla JavaScript ES modules, no build step. IndexedDB
+  tracked-snapshot store (`js/store.js`), BroadcastChannel cross-tab
+  updates, static hosting. Chart.js loads from CDN with an offline
+  fallback requirement (acceptance gate, see docs/ACCEPTANCE.md).
+- Repository: `lullabie/dashboard-cloudflare`, public, MIT LICENSE.
+  Verified base commit for the v4 bundle:
+  `29d43ff04a6abb257b5046c85f2fcba6f0bb679d` (main).
+- A stale candidate branch `bulk-phase-20261019` exists; its release
+  claim was withdrawn on 2026-10-20. It is evidence, not a candidate.
+- The app ships empty of personal data. All test data is invented.
 
-The proposed build uses Workers Static Assets, a TypeScript Worker API, D1
-and bounded Cron at a free workers.dev address. Normal use must work with
-all AI chats closed. The main technical gate is measured compliance with
-the Free CPU allowance, plus actual D1 atomicity, durable owner login and
-unattended source updates. No host proof is claimed.
+## v3 repair lanes (verified under Node mocks, not browser acceptance)
 
-Read the [design](docs/plan-b/DESIGN-2026-10-16.md),
-[plan](docs/plan-b/IMPLEMENTATION-PLAN-2026-10-16.md),
-[completed research](docs/plan-b/CLOUDFLARE-RESEARCH-2026-10-16.md) and
-[Muse research disposition](docs/research/MUSE-CLOUDFLARE-2026-10-16.md).
-Research suggestions for R2 storage, paid tiers or other services are not
-approved scope. Required additional service cost remains $0.
+- STORE (js/store.js): v3 + BroadcastChannel correction + degraded-save
+  correction harvested and verified. Current store.js SHA-256
+  `b600175c04e7100e8bb7bb6a8e5cd899f5eb0cb6663cd16f85ad64c22074be11`
+  (21,197 bytes). A v4 lifecycle repair (repeated-init listener leak)
+  is open as Track A of the v4 bundle.
+- MAIN (js/main.js and owned modules): v3 + test-label correction
+  harvested and verified.
+- HABITS (js/habits.js) and PROGRESS (js/visuals/progress-summary.js):
+  v3 + habit-contract correction harvested and verified.
+- FEEDS (js/feeds.js): v3 repair **blocked**. The old session never
+  delivered its v3 source through the API; the published branch
+  `codex-feeds-fix-10139058434333404787` is a stale pre-v3 artifact and
+  must not be used as the repair. A single replacement session is
+  authorized as Track B of the v4 bundle, starting from the verified
+  Source Packet v2 feeds.js (SHA-256
+  `8f712a052eaa6240a847280212e3be5bf7f0622fe129a609e39841fe318f7047c`).
 
-Before implementation, settle only the material design choices:
+## v4 bundle (active, marker CODEX-DASHBOARD-PHASES-V4-20261021)
 
-- Single-owner GitHub OAuth or Cloudflare Access under its documented onboarding condition.
-- Generic public shell with private APIs, or authenticated HTML/assets too.
-- The proposed first-release boundary and specific occurrence/history rules.
+- Track A: STORE listener-lifecycle repair (Jules STORE session).
+- Track B: FEEDS replacement session (one new session, plan approval
+  required before work).
+- Track C: source assembly and import closure on a `codex/` review
+  branch (Muse assembler, sole writer of the assembled branch).
+- Track D: independent QA preparation under `qa/v4/` (no production edits).
+- Track E: test runner, documentation and asset packaging (this record).
+- Phase 2 (ordered integration and full browser acceptance) starts only
+  after a complete Phase 1 source is retrievable. No merge and no
+  deployment are part of this bundle.
 
-GitHub OAuth and a generic public shell are proposals, not recorded user
-choices. Retain the black/lime expandable design and Bank of Canada first
-source; rates alone do not complete news. Calendar days end at the next local
-midnight. Keep late records and missed check-ins honest.
+## Backend status: UNACCEPTED
 
-Next: review the concrete design, resolve those choices and authorize a bounded
-implementation scope. Account creation, database/OAuth setup, schedules,
-deployment, private-data transfer, billing changes and merges remain outside
-the current scope. All new-host acceptance cases are **NOT RUN**.
+No Cloudflare resource, Worker, D1/KV store, OAuth app, paid fallback or
+enabled product schedule exists or is authorized. Hosted authentication,
+Workers/D1 behavior, Free CPU limits and unattended updates remain
+**UNVERIFIED**. Local tests do not pass hosted acceptance.
+
+## Rollback and recovery
+
+- Every lane artifact is an immutable patch file with a recorded
+  SHA-256; assembly selects patches by hash. Rollback of the assembled
+  review branch = check out the prior frozen commit; never force-push
+  and never rewrite a published review commit.
+- User data recovery is a product feature, not a deploy action: JSON
+  export before changes, import with restore preview and confirmation.
+  A failed automatic import download must leave the losing payload
+  recoverable by an explicit manual export (v3 contract).
+- Code rollback is not a data restore. IndexedDB contents survive code
+  rollback; schema changes require an explicit migration decision by
+  the store owner (Track A session) before they ship.
+- If a review branch is rejected, keep it as evidence and assemble a
+  new branch from the verified base; do not reset or delete remote work.
+
+## Open decisions and blockers
+
+- FEEDS v3 bytes are unrecoverable from the old session (recorded
+  blocker). Track B replaces the work with new provenance; it must not
+  be labeled the v3 artifact.
+- The old GitHub Pages workflow (`.github/workflows/pages.yml`) remains
+  a named packaging gate until reviewed. Preparing an asset allowlist
+  does not authorize running or replacing it.
+- Full browser acceptance (Phase 2) has not run. Nothing in this
+  document is a shippable claim.
