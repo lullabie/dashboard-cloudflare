@@ -1,44 +1,71 @@
-# Dashboard Cloudflare acceptance map
+# Dashboard acceptance registry
 
-Updated: 2026-10-16. Every new-host case below is **NOT RUN**.
-This is a gate map for later authorized work, not permission to provision,
-deploy, enable schedules or release. The [design](plan-b/DESIGN-2026-10-16.md)
-defines proposed behavior; material choices still need review.
+Updated: 2026-10-21 (v4 bundle). **This is the single acceptance
+registry.** Track D's `qa/v4/TEST-POINTS.md` is only a
+harness-to-TEST-ID map; it does not register status. Do not create a
+second registry elsewhere.
 
-Use the relevant invariants from the
-[historical S2 register](https://github.com/lullabie/dashboard/blob/c261da2cb8d56a3a5a219042c8503add416a900f/docs/ACCEPTANCE.md).
-Historical Muse-host stage ordering and builder instructions do not govern
-Plan B. Record any deliberate contract change explicitly before acceptance;
-do not call an incompatible replacement an unchanged invariant.
+Status rule: an ID is **NOT RUN** until it passes on the frozen
+assembled commit in the stated environment. Lane-level STATIC or MOCK
+evidence is recorded as notes; it never changes an ID's status.
+Each executed result must name the commit, source hash where needed,
+exact command or steps, runner/browser versions, origin and database
+isolation, expected result, observed result and PASS/FAIL/NOT RUN.
 
-| Gate | Required result | Historical mapping | Status |
-|---|---|---|---|
-| Owner and transport | Deny unauthenticated/non-owner direct access to private reads, writes, receipt lookup, export and restore. Prove OAuth state replay denial, Origin/CSRF checks, durable expiry/revocation and logout clearing across tabs/resume. | S2-08, 09, 25 | NOT RUN |
-| Atomic mutation | Strict validation, generation/record/version assertions, zero-row failure and whole-batch rollback including receipt insertion. No fixture/fault endpoint in production configuration. | S2-03, 18, 19, 26, 27 | NOT RUN |
-| Concurrency and replay | Actual simultaneous duplicate/conflicting requests; one semantic mutation and version advance. Reject changed semantic content under the same ID. Preserve the reviewed different-record concurrency rule. Frozen retries resolve lost responses; receipt expiry/capacity cannot cause re-execution. | S2-04, 05, 06, 07, 14, 20 | NOT RUN |
-| Coherent client state | Authoritative reload persistence and consistent snapshots. Historical receipts or delayed queries cannot replace newer state. Preserve drafts through conflicts and unknown outcomes. | S2-02, 14, 22 | NOT RUN |
-| Recovery and capacity | Complete coherent export; strict size/shape validation; owner/digest/live-version-bound restore preview and confirmation; atomic replacement into a fresh generation. Preserve receipts and later edits on retries. Test capacity races and the maximum admitted restore body. | S2-11, 12, 13, 16, 17, 21, 23, 24 | NOT RUN |
-| Database recovery | Isolated recovery rehearsal with session-epoch rotation outside restored D1 state. Restored rows cannot revive revoked sessions. Code rollback is not a data restore. | New Cloudflare case | NOT RUN |
-| Real Updates | Permitted Bank of Canada adapter with attribution, actual per-series observation dates and freshness. Preserve cache on malformed/oversized/failed inputs. Prove fencing, duplicate ticks, conditional requests and a later unattended scheduled update with AI chats closed. | Historical public-feed gate, adapted | NOT RUN |
-| Usable R1 | Today, working Goals and actual Updates on one address; create/edit/archive/reopen, notes display, error/empty/stale states, keyboard/focus, narrow layout and text labels on color states. No daily-history or news completion claim for indicators/manual progress. | S2-02, 10, 15 plus new feed UI | NOT RUN |
-| Free host fit | Actual HTTP/Cron CPU, scanned/written rows, isolated binding, auth/read/write/conflict/export and worst admitted valid/invalid feed input. No automatic paid fallback when a limit fails. | S2-16 plus new host cases | NOT RUN |
-| R2 daily history | Occurrence-bound Done; next local midnight; partial start, pause/resume, 23/25-hour days, zone transitions, units/target changes, late entries/corrections and archive/reopen. Distinct closed eligible occurrences define adherence. Cron absence cannot erase missed days. | Extended S2-10 plus new history cases | NOT RUN |
-| R2 news | Separate permitted headline source with actual story dates, link, permitted excerpt, deduplication and a genuine scheduled story update. Rates do not satisfy news. | New source case | NOT RUN |
+## Test-point registry (Track D IDs, v4)
 
-Each executed result must name its exact commit, runtime/tool versions,
-adapter and isolated binding; give the command or reproducible steps,
-invented inputs, expected result, observed result and PASS/FAIL/NOT RUN.
-Record failures even if a later run passes. Partial coverage does not pass
-a full gate. Use separate concurrent requests for concurrency evidence.
-Compare all affected tables for rollback and nonmutation cases.
+| ID | Criterion | Environment | Status | Evidence notes |
+|---|---|---|---|---|
+| TEST-UI-001 | Complete imports; Today, Goals and Updates start with no uncaught error | Real browser, assembled commit | NOT RUN | Import closure is Track C work; four lane patches alone do not prove startup. |
+| TEST-STORE-001 | Degraded init and failed re-init block writes; reads/export remain available | Real browser + real IndexedDB | NOT RUN | MOCK evidence exists: degraded-save suite passes under Node doubles (coordinator and Codex repros, 2026-10-21). |
+| TEST-STORE-002 | Explicit successful recovery permits one durable save; reload preserves it | Real browser + real IndexedDB | NOT RUN | MOCK recovery cases pass in the storage degraded/recovery suite (7/7, Codex check 2026-10-21). |
+| TEST-STORE-003 | Repeated init leaves one active subscription; two real tabs refresh correctly | Real browser, two tabs, one origin | NOT RUN | Open defect V4-STORE-LISTENER-LIFECYCLE: three inits leave three active channels (Track A repair). Single-init registration passes under MOCK. |
+| TEST-STORE-004 | Post-commit notification failure settles accurately and does not induce duplicate retry | Real browser + real IndexedDB | NOT RUN | Track A adds a notification test file; no executed result yet. |
+| TEST-FEEDS-001 | Persisted cache/generation, module reload, valid refresh and reload preserve the new result | Real browser | NOT RUN | Blocked on Track B (FEEDS replacement). The v3 fix (defects F1/F2) was never delivered; the stale branch is not evidence. |
+| TEST-FEEDS-002 | Paused refresh plus another tab's accepted manual/source/domain edit loses neither accepted change | Real browser, two tabs | NOT RUN | Blocked on Track B. |
+| TEST-FEEDS-003 | Reversed response order, changed/deleted source, timeout/oversize/malformed response preserve ordering and last valid cache | Real browser with harness response barriers | NOT RUN | Blocked on Track B. Harness prepared by Track D under `qa/v4/`. |
+| TEST-HABITS-001 | Actual control creates/removes `completedAt`; summary, reload and local-day boundary agree | Real browser | NOT RUN | MOCK evidence exists: progress summary counts `completedAt` objects 1/1 (Codex repro, 2026-10-21). |
+| TEST-UI-002 | Form rejection retains input; retry; import cancel/reject/repeat selection; export readback; keyboard focus; 320x568 and 375px layout; reduced motion (each subcase recorded separately) | Real browser | NOT RUN | MAIN's earlier fixed PASS strings for accessibility/motion were replaced with NOT EXECUTED in the v3 label correction; no browser result exists. |
 
-No production dataset may be reset for testing. Preview authentication does
-not establish database isolation. Exclude bodies, credentials and private
-records from logs and reports. A configured Cron or manual trigger does not
-prove an unattended update. A local runtime/model pass does not establish
-host CPU or D1 behavior. A download click does not prove a durable backup.
+## Release criteria categories (v3 bundle) — coverage map
 
-Release requires the reviewed scope, applicable R1 gates, independent diff
-review and explicit release authorization. R2 and later modules keep their
-own unrun gates until implemented and tested. Retain the full backlog; do
-not use deferred work to label the initial release complete for that scope.
+Every category below must be covered by the Phase 2 matrix on the
+frozen assembled commit before any shippable claim. Categories map to
+the test points above or to matrix-only cases owned by Track D.
+
+| Category | Covered by | Status |
+|---|---|---|
+| Fresh load; complete startup wiring | TEST-UI-001 | NOT RUN |
+| localStorage upgrade and recovery | TEST-STORE-002, matrix legacy cases | NOT RUN |
+| Clean and malformed import/export; losing draft recoverable after failed download | TEST-UI-002, TEST-STORE-001 | NOT RUN |
+| Real-IndexedDB commit/abort/denial; two-tab conflicts; genuine concurrent first open | TEST-STORE-001..004 | NOT RUN |
+| Every form: delayed commit, rejection, retained input, retry, duplicate click | TEST-UI-002 | NOT RUN |
+| Goals/habits midnight, DST and saved-zone matrix; legacy achievement; archive/restore; honest late/missing history | TEST-HABITS-001, matrix zone cases | NOT RUN |
+| Maps unique-ID CRUD | Matrix-only case | NOT RUN |
+| College markup stays text (no injected HTML) | Matrix-only case | NOT RUN |
+| Investments numeric round-trip | Matrix-only case | NOT RUN |
+| Populated explorers render real data | Matrix-only case | NOT RUN |
+| Feed reload, ordering and cross-tab conflict | TEST-FEEDS-001..003 | NOT RUN |
+| Keyboard-operable import control | TEST-UI-002 | NOT RUN |
+| Nested modal focus, Escape, focus return | TEST-UI-002 | NOT RUN |
+| Viewports 320x568 and 375px | TEST-UI-002 | NOT RUN |
+| Reduced motion | TEST-UI-002 | NOT RUN |
+| Chart CDN unavailable/offline fallback | Matrix-only case | NOT RUN |
+| Exact release asset manifest | Packaging check (Track E script) | NOT RUN |
+| Zero LICENSE changes | Packaging check + patch review | Verified per patch at harvest; branch-level check NOT RUN |
+
+## Unresolved host requirements (not acceptance failures — unscoped)
+
+Hosted authentication, Cloudflare Workers/D1 behavior, Free CPU
+limits and unattended scheduled updates remain **UNVERIFIED** and
+outside this bundle. The backend is UNACCEPTED. Local or browser
+results must never be reported as hosted acceptance. The old GitHub
+Pages workflow (`.github/workflows/pages.yml`) remains a named
+packaging gate until reviewed.
+
+## Historical note
+
+The 2026-10-16 version of this file was a gate map for the proposed
+Cloudflare host (all cases NOT RUN). That host plan is historical;
+its S2 invariant references remain useful background for contract
+changes, which must be recorded explicitly before acceptance.
