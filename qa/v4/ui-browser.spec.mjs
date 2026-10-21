@@ -1,7 +1,14 @@
-// ui-browser.spec.mjs — Lane D-UI browser QA for dashboard v5.
-// Run: node ui-browser.spec.mjs [--tree <path>] [--cases TEST-UI-001,V5-STORE-02]
-// Env: DASH_TREE (tree root), PLAYWRIGHT_MODULE (module path or name),
-//      QA_OUT (scratch dir for downloads and generated import files).
+// ui-browser.spec.mjs — Lane D-UI browser QA for dashboard v6.
+// Run: node qa/v4/ui-browser.spec.mjs [--tree <path>] [--cases TEST-UI-001,V5-STORE-02]
+// Tree under test: --tree, else DASH_TREE, else QA_TREE_ROOT, else the
+// checkout that contains this spec (qa/v4/ -> repo root, two levels up).
+// The spec reads and reports the actual js/store.js and js/feeds.js SHA-256
+// of that tree. No source is pinned or substituted.
+// Env: PLAYWRIGHT_MODULE (module path or name), QA_RESULTS_OUT (results
+//      JSON path), QA_OUT (scratch dir for downloads and import files).
+// Any FAIL or NOT RUN case makes the process exit nonzero. Results are
+// written as JSON next to this spec (browser-results.json) unless
+// --results-out or QA_RESULTS_OUT names another path.
 //
 // This spec serves the assembled tree from a local temporary origin and drives
 // it in a real Firefox browser through Playwright. Each browser context is an
@@ -15,7 +22,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFil
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { writeBrowserResults } from '../../scripts/write-browser-results.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -24,8 +32,8 @@ function argValue(name) {
   return i >= 0 ? args[i + 1] : null;
 }
 const TREE = path.resolve(
-  argValue('--tree') ?? process.env.DASH_TREE ??
-    path.resolve(here, '../../../codex-v4-20261021/assembly/tree'),
+  argValue('--tree') ?? process.env.DASH_TREE ?? process.env.QA_TREE_ROOT ??
+    path.resolve(here, '..', '..'),
 );
 const ONLY = (argValue('--cases') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const QA_OUT = process.env.QA_OUT ?? mkdtempSync(path.join(os.tmpdir(), 'ui-browser-qa-'));
@@ -37,7 +45,7 @@ const TAG = String(Date.now()).slice(-6);
 // ---------------------------------------------------------------------------
 const results = [];
 function record(id, status, detail) {
-  results.push({ id, status });
+  results.push({ id, status, boundary: 'REAL-BROWSER', detail });
   console.log(`${status.padEnd(7)} ${id} [REAL-BROWSER] ${detail}`);
 }
 function want(id) {
@@ -70,6 +78,35 @@ console.log(
 );
 console.log(`Scratch dir: ${QA_OUT}`);
 console.log('');
+
+// ---------------------------------------------------------------------------
+// Machine results. Interim shape; Lane E's shared schema supersedes it.
+// ---------------------------------------------------------------------------
+const STORE_SHA256 = sha256Of(path.join(TREE, 'js/store.js'));
+const FEEDS_SHA256 = sha256Of(path.join(TREE, 'js/feeds.js'));
+let resultsEmitted = false;
+function emitResults() {
+  const out = process.env.QA_RESULTS_FILE ?? argValue('--results-out') ?? process.env.QA_RESULTS_OUT ??
+    path.join(here, 'browser-results.json');
+  try {
+    writeBrowserResults({
+      outFile: path.resolve(out),
+      tree: TREE,
+      testedCommit: process.env.QA_TESTED_COMMIT ?? 'working-tree',
+      runtime: process.env.QA_RUNTIME ?? `node ${process.version}`,
+      runId: process.env.QA_RUN_ID,
+      cases: results,
+    });
+    resultsEmitted = true;
+    console.log(`Machine results written: ${out}`);
+  } catch (error) {
+    console.error(`Machine results NOT written: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+// Case setup between runCase calls is unguarded. If it throws, the process
+// still owes the machine results for the cases that did run.
+process.on('exit', () => { if (!resultsEmitted) emitResults(); });
 
 // ---------------------------------------------------------------------------
 // Static file server on a local temporary origin.
@@ -109,9 +146,13 @@ const ORIGIN = `http://127.0.0.1:${server.address().port}`;
 // ---------------------------------------------------------------------------
 let pw = null;
 const pwErrors = [];
+async function importModule(spec) {
+  const isPath = path.isAbsolute(spec) || spec.endsWith('.mjs') || spec.endsWith('.js');
+  return import(isPath ? pathToFileURL(spec).href : spec);
+}
 for (const name of [process.env.PLAYWRIGHT_MODULE, 'playwright', 'playwright-core'].filter(Boolean)) {
   try {
-    pw = await import(name);
+    pw = await importModule(name);
     if (pw?.firefox) break;
     pwErrors.push(`${name}: loaded but exposes no firefox launcher`);
     pw = null;
@@ -126,7 +167,8 @@ if (pw) {
     browser = await pw.firefox.launch();
     browserNote = 'firefox launched from the Playwright browser cache';
   } catch (firstError) {
-    // Fall back to a cached Firefox binary when the registry lookup fails.
+    // Fallback only: a cached Firefox binary when the registry lookup fails.
+    // The documented route is the pinned install in qa/v4/README.md.
     const cacheRoot = path.join(os.homedir(), '.cache', 'ms-playwright');
     const candidates = existsSync(cacheRoot)
       ? readdirSync(cacheRoot)
@@ -265,7 +307,7 @@ if (!browser) {
   for (const id of [
     'TEST-UI-001', 'TEST-UI-002a', 'TEST-UI-002b', 'TEST-UI-002c', 'TEST-UI-002d',
     'TEST-UI-002e', 'TEST-UI-002f', 'TEST-UI-002g', 'TEST-UI-002h', 'TEST-UI-002i',
-    'TEST-UI-002j', 'V5-STORE-02',
+    'TEST-UI-002j', 'V5-STORE-02', 'TEST-HABITS-001',
   ]) notRun(id, `Playwright Firefox unavailable — ${blocker}`);
 } else {
   console.log(`Browser: ${browserNote}`);
@@ -608,6 +650,44 @@ if (!browser) {
     return `reduced-motion media matches; ${probe.mediaRules} stylesheet media rule(s); computed durations transition ${probe.transition}, animation ${probe.animation}`;
   });
   await ctx4.close();
+
+  // ----- Context 5: habits completedAt shape (TEST-HABITS-001). -----
+  const ctx5 = await browser.newContext({ acceptDownloads: true });
+  const pageH = await ctx5.newPage();
+  const stateH = watchPage(pageH);
+  const bootH = await gotoApp(pageH, stateH);
+
+  await runCase('TEST-HABITS-001', async () => {
+    assert.ok(bootH.booted, `app did not boot — ${bootH.evidence || 'no boot signal'}`);
+    const probe = await pageH.evaluate(async () => {
+      const habits = await import('/js/habits.js');
+      const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' });
+      const today = fmt.format(new Date());
+      const habit = await habits.saveHabit({ title: 'Habits Probe', schedule: 'daily' });
+      await habits.toggleCheckin(habit.id, today);
+      const mine = habits.getHabits().find((h) => h.id === habit.id);
+      const occ = mine ? mine.occurrences[today] : null;
+      return { today, id: habit.id, occ };
+    });
+    assert.ok(probe.occ && typeof probe.occ === 'object', `check-in created no occurrence object: ${JSON.stringify(probe)}`);
+    assert.ok(typeof probe.occ.completedAt === 'string' && probe.occ.completedAt.endsWith('Z') && !Number.isNaN(Date.parse(probe.occ.completedAt)), `occurrence carries no valid completedAt: ${JSON.stringify(probe.occ)}`);
+    const bootH2 = await gotoApp(pageH, stateH);
+    assert.ok(bootH2.booted, 'app did not reboot after navigation');
+    const after = await pageH.evaluate(async (id) => {
+      const habits = await import('/js/habits.js');
+      const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' });
+      const today = fmt.format(new Date());
+      const mine = habits.getHabits().find((h) => h.id === id);
+      const occ = mine ? mine.occurrences[today] : null;
+      await habits.toggleCheckin(id, today);
+      const afterRemove = habits.getHabits().find((h) => h.id === id);
+      return { occ, removed: !!afterRemove && !(today in afterRemove.occurrences) };
+    }, probe.id);
+    assert.ok(after.occ && after.occ.completedAt === probe.occ.completedAt, 'reloaded occurrence lost its completedAt value');
+    assert.ok(after.removed, 'second toggle did not remove the occurrence');
+    return `completedAt occurrence created for local day ${probe.today}, preserved across reload with the same timestamp, removed by second toggle`;
+  });
+  await ctx5.close();
   await browser.close();
 }
 
@@ -619,4 +699,5 @@ const counts = results.reduce((acc, r) => {
 console.log('');
 console.log(`Summary: PASS ${counts.PASS ?? 0}; NOT RUN ${counts['NOT RUN'] ?? 0}; FAIL ${counts.FAIL ?? 0}`);
 console.log('Boundary rule: PASS means the case ran in a real Firefox browser against the tree named in the header.');
-if ((counts.FAIL ?? 0) > 0) process.exitCode = 1;
+if ((counts.FAIL ?? 0) > 0 || (counts['NOT RUN'] ?? 0) > 0) process.exitCode = 1;
+emitResults();
