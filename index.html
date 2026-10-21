@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
     <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="css/visual-upgrade.css">
 </head>
 <body>
     <header class="app-header">
@@ -15,6 +16,9 @@
             <button class="nav-btn" data-view="maps">Maps</button>
             <button class="nav-btn" data-view="college">College</button>
             <button class="nav-btn" data-view="jobs">Jobs</button>
+            <button class="nav-btn" data-view="investments">Investments</button>
+            <button class="nav-btn" data-view="news">News</button>
+            <button class="nav-btn" data-view="habits">Habits</button>
             <button class="nav-btn" data-view="settings">Settings</button>
         </nav>
     </header>
@@ -29,8 +33,17 @@
             <div id="radar-container" class="grid-container"></div>
             
             <h2>Indicators</h2>
+            
+    <details open style="margin-bottom: 1rem;">
+        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Indicators Chart</summary>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="indicators-chart"></canvas>
+        </div>
+        <div class="sr-only" id="indicators-chart-alt" tabindex="0">Line chart showing FX trends over time.</div>
+    </details>
             <div id="indicators-container" class="grid-container"></div>
             
+            <div id="progress-summary-root"></div>
             <h2>Today's Priorities</h2>
             <div id="today-goals-container" class="grid-container">
                 <div class="empty-state">No active goals for today. Enjoy your day!</div>
@@ -69,8 +82,17 @@
         </section>
 
         <section id="view-college" class="view hidden">
+            
+    <details open style="margin-bottom: 1rem;">
+        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Academic Workload Chart</summary>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="college-chart"></canvas>
+        </div>
+        <div class="sr-only" id="college-chart-alt" tabindex="0">Table showing upcoming assignments and exams due by week.</div>
+    </details>
             <div class="view-header">
-                <h2>College</h2>
+                <h2 class="vu-title">College</h2>
+                <div id="college-deadline-timeline-root"></div>
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="timetable">Timetable</button>
                     <button class="tab-btn" data-tab="assignments">Assignments</button>
@@ -91,6 +113,15 @@
                 <h2>Jobs</h2>
                 <button id="btn-create-job" class="primary-btn">+ Add Job</button>
             </div>
+            
+    <details open style="margin-bottom: 1rem;">
+        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Jobs Pipeline Chart</summary>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="jobs-chart"></canvas>
+        </div>
+        <div class="sr-only" id="jobs-chart-alt" tabindex="0">Bar chart of current job application statuses.</div>
+    </details>
+            <div id="jobs-explorer-root"></div>
             <div class="filter-bar" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
                 <select id="job-status-filter" class="form-control" style="padding: 0.5rem; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--text-primary); border: 1px solid var(--border-color);">
                     <option value="all">All Statuses</option>
@@ -110,6 +141,64 @@
             <div id="jobs-container" class="grid-container"></div>
         </section>
 
+        <section id="view-investments" class="view hidden">
+            <div class="view-header">
+                <h2>Investments</h2>
+                <button id="btn-create-investment" class="primary-btn">+ New Watchlist Item</button>
+            </div>
+            <div style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                <em>Not financial advice. No trade execution. For informational purposes only.</em>
+            </div>
+            
+    <details open style="margin-bottom: 1rem;">
+        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Watchlist Chart</summary>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="investments-chart"></canvas>
+        </div>
+        <div class="sr-only" id="investments-chart-alt" tabindex="0">Grouped bar chart comparing manual entry and current prices of watchlist items.</div>
+    </details>
+            <div id="investments-explorer-root"></div>
+            <div id="investments-container" class="grid-container"></div>
+        </section>
+
+        <section id="view-news" class="view hidden">
+            <div class="view-header">
+                <h2>News & Updates</h2>
+                <div class="button-group">
+                    <button id="btn-refresh-news" class="secondary-btn">Refresh Feeds</button>
+                    <button id="btn-manage-sources" class="secondary-btn">Manage Sources</button>
+                    <button id="btn-add-manual-news" class="primary-btn">+ Add Manual</button>
+                </div>
+            </div>
+            
+            <div id="news-status-bar" style="margin-bottom: 1rem; font-size: 0.875rem; color: var(--text-secondary);"></div>
+
+            <div class="filter-bar" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                <select id="news-category-filter" class="form-control" style="padding: 0.5rem; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--text-primary); border: 1px solid var(--border-color);">
+                    <option value="all">All Categories</option>
+                    <option value="global">Global</option>
+                    <option value="canada">Canada</option>
+                    <option value="public-immigration">Public Immigration</option>
+                </select>
+            </div>
+            <div id="news-container" class="grid-container"></div>
+        </section>
+
+        <section id="view-habits" class="view hidden">
+            <div class="view-header">
+                <h2>Habits</h2>
+                <button id="btn-create-habit" class="primary-btn">+ New Habit</button>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="active-habits">Active</button>
+                <button class="tab-btn" data-tab="archived-habits">Archive</button>
+            </div>
+
+            <div id="active-habits-container" class="grid-container tab-content active"></div>
+            <div id="archived-habits-container" class="grid-container tab-content hidden"></div>
+        </section>
+
         <section id="view-settings" class="view hidden">
             <h2>Data Management</h2>
             <div class="card">
@@ -117,16 +206,51 @@
                 <p>Your data is stored securely in your browser. Export it regularly to prevent loss.</p>
                 <div class="button-group">
                     <button id="btn-export" class="primary-btn">Export Data</button>
-                    <label for="import-file" class="secondary-btn cursor-pointer">
-                        Import Data
-                        <input type="file" id="import-file" accept=".json" class="hidden-input">
-                    </label>
+                    <button id="btn-import-trigger" class="secondary-btn">Import Data</button>
+                    <input type="file" id="import-file" accept=".json" style="display: none;">
+                </div>
+                <div class="recovery-group" style="margin-top: 1rem;">
+                    <h4>Recovery Options</h4>
+                    <p>If a save failed or there was a cross-tab conflict, use these recovery options.</p>
+                    <div class="button-group">
+                        <button id="btn-export-draft" class="secondary-btn">Export Unsaved Draft</button>
+                        <button id="btn-reload-latest" class="secondary-btn">Reload Latest Data (Drops Draft)</button>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
 
     <!-- Modals -->
+    <div id="investment-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="investment-modal-title">Add Investment</h2>
+            <form id="investment-form">
+                <input type="hidden" id="investment-id">
+                <div class="form-group">
+                    <label for="investment-ticker">Ticker / Name</label>
+                    <input type="text" id="investment-ticker" required>
+                </div>
+                <div class="form-group">
+                    <label for="investment-entry">Entry Price</label>
+                    <input type="number" id="investment-entry" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="investment-current">Current Price (Manual Update)</label>
+                    <input type="number" id="investment-current" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="investment-notes">Notes / Target</label>
+                    <textarea id="investment-notes" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" id="btn-cancel-investment-modal">Cancel</button>
+                    <button type="submit" class="primary-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="goal-modal" class="modal hidden">
         <div class="modal-content">
             <h2 id="modal-title">Create Goal</h2>
@@ -205,7 +329,7 @@
                 </div>
                 <div class="form-group">
                     <label for="college-item-date">Date / Time (America/Toronto)</label>
-                    <input type="date" id="college-item-date" required>
+                    <input type="date" id="college-item-date">
                 </div>
                 <div class="form-group">
                     <label for="college-item-notes">Notes / Value</label>
@@ -213,6 +337,98 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="secondary-btn" id="btn-cancel-college-modal">Cancel</button>
+                    <button type="submit" class="primary-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="news-source-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="news-source-modal-title">Manage Source</h2>
+            <form id="news-source-form">
+                <input type="hidden" id="news-source-id">
+                <div class="form-group">
+                    <label for="news-source-name">Name</label>
+                    <input type="text" id="news-source-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="news-source-url">URL (RSS/Atom HTTPS)</label>
+                    <input type="text" id="news-source-url" required pattern="https?://.*" title="Must start with http:// or https://">
+                </div>
+                <div class="form-group">
+                    <label for="news-source-category">Category</label>
+                    <select id="news-source-category" required>
+                        <option value="global">Global</option>
+                        <option value="canada">Canada</option>
+                        <option value="public-immigration">Public Immigration</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" id="btn-cancel-news-source-modal">Cancel</button>
+                    <button type="submit" class="primary-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="news-sources-list-modal" class="modal hidden" style="z-index: 90;">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="view-header">
+                <h2>News Sources</h2>
+                <button id="btn-add-source" class="primary-btn">+ Add Source</button>
+            </div>
+            <div id="news-sources-container" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 400px; overflow-y: auto;"></div>
+            <div class="modal-actions">
+                <button type="button" class="secondary-btn" id="btn-close-sources-list-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="news-manual-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="news-manual-modal-title">Add Manual News</h2>
+            <form id="news-manual-form">
+                <input type="hidden" id="news-manual-id">
+                <div class="form-group">
+                    <label for="news-manual-title">Headline</label>
+                    <input type="text" id="news-manual-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="news-manual-url">Source URL</label>
+                    <input type="text" id="news-manual-url" required pattern="https?://.*" title="Must start with http:// or https://">
+                </div>
+                <div class="form-group">
+                    <label for="news-manual-date">Published Date (America/Toronto)</label>
+                    <input type="date" id="news-manual-date">
+                </div>
+                <div class="form-group">
+                    <label for="news-manual-category">Category</label>
+                    <select id="news-manual-category" required>
+                        <option value="global">Global</option>
+                        <option value="canada">Canada</option>
+                        <option value="public-immigration">Public Immigration</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" id="btn-cancel-news-manual-modal">Cancel</button>
+                    <button type="submit" class="primary-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="habit-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="habit-modal-title">Create Habit</h2>
+            <form id="habit-form">
+                <input type="hidden" id="habit-id">
+                <div class="form-group">
+                    <label for="habit-name">Name</label>
+                    <input type="text" id="habit-name" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" id="btn-cancel-habit-modal">Cancel</button>
                     <button type="submit" class="primary-btn">Save</button>
                 </div>
             </form>
@@ -252,7 +468,7 @@
                 </div>
                 <div class="form-group">
                     <label for="job-date">Date Applied</label>
-                    <input type="date" id="job-date" required>
+                    <input type="date" id="job-date">
                 </div>
                 <div class="form-group">
                     <label for="job-notes">Notes</label>
@@ -266,6 +482,7 @@
         </div>
     </div>
 
+    <script src="js/chart.umd.js"></script>
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
