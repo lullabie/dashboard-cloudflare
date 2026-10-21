@@ -138,8 +138,8 @@ function validateImportData(data) {
 let lastNormalizeRecovery = [];
 function normalizeImportData(data) {
     const out = { ...data };
+    lastNormalizeRecovery = [];
     for (const k of ['goals', 'places', 'jobs', 'investments', 'habits', 'indicators']) {
-        lastNormalizeRecovery = [];
         if (!(k in out)) out[k] = [];
         else if (!Array.isArray(out[k])) { out[k] = []; lastNormalizeRecovery.push(k); }
     }
@@ -206,9 +206,10 @@ export async function initStore() {
                 if (!adoptedRecord) {
                     // Fix 3: Legacy Upgrade Compatibility
                     let legacyData = null;
+                    let legacyRaw = null;
                     try {
                         const raw = localStorage.getItem('dashboard_data');
-                        if (raw) legacyData = JSON.parse(raw);
+                        if (raw) { legacyRaw = raw; legacyData = JSON.parse(raw); }
                     } catch(e) {}
                     // Normalize the legacy payload to ensure valid shape without mutating localStorage
                     if (legacyData && typeof legacyData === 'object' && !Array.isArray(legacyData)) {
@@ -217,9 +218,9 @@ export async function initStore() {
                         legacyData = defaultData();
                     }
                     migratePlaces(legacyData);
-                        // V5-STORE-01: validate the repaired shape before the first durable put.
-                        validateImportData(legacyData);
-                        const legacyRecovery = lastNormalizeRecovery.slice();
+                    // V5-STORE-01: validate the repaired shape before the first durable put.
+                    validateImportData(legacyData);
+                    const legacyRecovery = lastNormalizeRecovery.slice();
 
                     adoptedRecord = {
                         id: RECORD_ID,
@@ -228,7 +229,10 @@ export async function initStore() {
                         revision: 1,
                         savedAt: new Date().toISOString(),
                         data: legacyData,
-                        envelopeExtras: legacyRecovery.length ? { legacyRecovery } : {}
+                        // V6: a malformed recovery is explicit and reversible. The record
+                        // names every repaired field and keeps the original localStorage
+                        // bytes, so recovery never silently destroys the original.
+                        envelopeExtras: legacyRecovery.length ? { legacyRecovery, legacyOriginalRaw: legacyRaw } : {}
                     };
                     store.put(adoptedRecord);
                 }
