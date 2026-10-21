@@ -1,62 +1,63 @@
-# Dashboard context and provenance
+# Dashboard context
 
-Updated: 2026-10-16. This is generic project history, not a personal profile.
-Current authority is in [project status](../PROJECT-STATUS.md). The design
-contains the full retained product backlog and proposed behavior.
+Updated: 2026-10-21 (v4 bundle). This file records crew roles, file
+ownership and standing rules. Current state lives in
+[PROJECT-STATUS.md](../PROJECT-STATUS.md); gate status lives in
+[ACCEPTANCE.md](ACCEPTANCE.md) (the single registry).
 
-## Decisions and reasons
+## Product in one paragraph
 
-| State | Project context |
+A single-user, local-first personal dashboard written in vanilla
+JavaScript ES modules with no build step. Data is stored in the
+browser's IndexedDB through a tracked-snapshot store; tabs stay in sync
+through BroadcastChannel. The app ships empty; the owner enters their
+own records. Required additional service cost: $0.
+
+## Crew roles
+
+| Role | Who | Authority |
+|---|---|---|
+| Owner | The user | Product and scope decisions; merge and deployment approval (neither is in the v4 bundle). |
+| Coordinator | Muse | Sole Jules dispatch coordinator. Assembles owned files (Track C). Edits docs/CI/packaging only outside lane ownership. |
+| Code lanes | Jules sessions | One session per production area; each writes only its allowlisted files. |
+| Independent review | Codex | Reviews patches and evidence via issue #1; decides technical disputes; runs independent repros. |
+| Design and repo writes | Astra (ChatGPT) | Design seat; GitHub connector writes when a push is authorized. |
+
+Coordination channel: GitHub issue #1 of `lullabie/dashboard-cloudflare`.
+A sent message is not an acknowledgement; receipts are verified from
+session state and update times.
+
+## File ownership (v4 bundle)
+
+| Files | Owner |
 |---|---|
-| Selected | Cloudflare Plan B replaces Muse hosting. Normal pages, login, saves and public updates must work while all AI chats are closed. |
-| Selected | A fresh private repository holds the clean context and future build. The old repository remains evidence; its length does not justify deleting history. |
-| Selected | Required additional service cost is $0. No paid fallback, automatic upgrade or required inference API. |
-| Selected | Title Dashboard; Today first; Goals and Updates one view change away; compact black surfaces, lime accents, labeled visuals and expandable cards. |
-| Selected | Show notes on card is a display control. Hidden notes are retained. |
-| Selected | Daily windows use a saved zone and end at the next local midnight. Preferred time does not change the cutoff. Achievement, adherence and elapsed time are separate. |
-| Selected | Preserve honest late records, missed check-ins and correction history. A missing on-time record does not prove the activity did not occur. |
-| Selected | Retain Bank of Canada as the first-source candidate. Verify current terms and adapter behavior during implementation. Indicators do not complete news. |
-| Proposed | Workers Static Assets, TypeScript Worker, D1, bounded Cron and workers.dev. Actual Free CPU, D1 and unattended operation still need host proof. |
-| Proposed | Single-owner GitHub OAuth, generic public shell, private authenticated APIs and the design's R1/R2 split. These await user review. |
-| Deferred | Private connectors, private relevance, paid services and optional AI features. Prior research or repository access does not authorize them. |
+| `js/store.js`, storage tests | STORE session 9588111654717985252 (Track A) |
+| `js/feeds.js`, feeds v4 contract/ordering tests | Replacement FEEDS session (Track B, one session, plan approval required) |
+| `js/main.js`, `index.html`, `js/goals.js`, `js/college.js`, `js/jobs.js`, `js/maps.js`, `js/investments.js`, `js/visuals/chart-explorer.js`, `css/app.css`, `css/visual-upgrade.css` | MAIN session (idle unless a concrete failure reopens it) |
+| `js/habits.js`, habits tests | HABITS session (idle unless reopened) |
+| `js/visuals/progress-summary.js`, progress tests | PROGRESS session (idle unless reopened) |
+| Assembled review branch, `docs/review/SOURCE-MANIFEST-V4.json`, `docs/review/OWNERSHIP-V4.json`, `docs/review/INTEGRATION-PLAN-V4.md` | Muse assembler (Track C), sole writer |
+| `qa/v4/*` | QA worker (Track D), no production edits |
+| `README.md`, `PROJECT-STATUS.md`, `docs/CONTEXT.md`, `docs/TOOLING.md`, `docs/COLLABORATION.md`, `docs/ACCEPTANCE.md`, `scripts/run-review-tests.mjs`, `scripts/package-static-assets.mjs`, `.github/workflows/review-tests.yml`, `docs/review/DEPLOYMENT-ASSETS-V4.txt` | Tooling/docs worker (Track E) |
+| `LICENSE` | Nobody. Byte-identical in every patch and branch. |
 
-The first usable surface is Today, working Goals and a real Updates source.
-The later scope remains Today/calendar; daily goals and full history; global
-and country news; public immigration updates; finance/economy and banking;
-investment research without trade execution; jobs and opportunities;
-education; offers/deals and price history; weekly reviews with explicit
-proposal confirmation; and an importance-led Quick Feed with expandable
-stories. See the [design](plan-b/DESIGN-2026-10-16.md) for detail. A placeholder
-or a renamed goal history is not a completed Updates module.
+One writer per file. A fix for another owner's file goes back to that
+owner as a brief; the coordinator never hand-edits an active lane's
+production code.
 
-## Evidence that must remain available
+## Standing rules
 
-| Source | Exact reference and disposition |
-|---|---|
-| Published clean research | [Research at c261da2](https://github.com/lullabie/dashboard/blob/c261da2cb8d56a3a5a219042c8503add416a900f/docs/plan-b/CLOUDFLARE-RESEARCH-2026-10-16.md). Vendor documentation, source review and illustrative arithmetic; not hosted acceptance. |
-| Portable reuse candidate | [PR #18](https://github.com/lullabie/dashboard/pull/18), [source at b029cc0](https://github.com/lullabie/dashboard/tree/b029cc002dcbe8b91e39b3c32137dffcd05d93b4/implementation/portable-dashboard). Retain validated-contract, retry, conflict, cache-ordering and recovery invariants; adapt Node/libSQL boundaries to Workers/D1. |
-| Portable historical results | 87 checks and seven browser cases were reported on Node/local libSQL. No rerun or Cloudflare pass is implied. Updates and daily occurrence/history DTOs were not implemented by that package. |
-| Exact Muse source | [Source at 9eaf20d](https://github.com/lullabie/dashboard/tree/9eaf20de6b7770ce82671385b545bac31de72d0d/audit/source). Presentation/helper reference only. Do not adopt its backend or browser token/draft persistence as accepted behavior. |
-| Preserved validator work | [PR #22](https://github.com/lullabie/dashboard/pull/22), last recorded head `e98f08b41188db4a2a422da7b184253cb87f3ba4`, plus unpublished local repair. Preserve; finishing it is not a Plan B prerequisite. |
-| Old acceptance contract | [S2 register at c261da2](https://github.com/lullabie/dashboard/blob/c261da2cb8d56a3a5a219042c8503add416a900f/docs/ACCEPTANCE.md). Reuse relevant invariants through the [new acceptance map](ACCEPTANCE.md); old host/stage instructions do not govern Plan B. |
-| Historical coordination | [Old issue #1](https://github.com/lullabie/dashboard/issues/1). Preserve as the record for earlier work. |
-| Muse Plan B research | [Research and disposition](research/MUSE-CLOUDFLARE-2026-10-16.md). Additional reference; proposals and estimates remain separate from user choices and measured results. |
-
-Known reasons for selective reuse: the portable source uses host-specific
-Node/libSQL boundaries and its receipt growth needs explicit bounds. The
-Muse backend can record success after a zero-row write, and its check-in
-request does not bind a resolved occurrence. Old feed code needs bounded
-bodies, valid-document checks, per-series dates and durable job deduplication.
-These defects are not erased by moving repositories.
-
-## Transfer boundary
-
-Carry only reviewed generic documents now. Later source reuse needs an exact
-file allowlist and retained notices. Do not import old Git metadata, private
-data, credentials, database files, recordings, screenshots, raw partner
-packets, generated output or dependencies. Keep current instructions short;
-link historical evidence instead of copying obsolete hosting authority.
-
-The fresh repository is an organizational change. It does not grant app,
-deployment, resource-creation, schedule, merge or private-data permission.
-No historical failure becomes a pass through this transfer.
+- **$0 constraint.** No new account, Cloudflare resource, OAuth app,
+  paid fallback or enabled product schedule without separate owner
+  approval.
+- **Invented-data rule.** Source, tests, fixtures and screenshots use
+  invented records only. No credentials, private payloads or personal
+  context in code, tests, messages or issue comments.
+- **Immutable artifacts.** Delivered lane patches and prior bundle
+  records (v1/v2/v3) are never edited in place. A correction is a new
+  patch with a new hash.
+- **Evidence labels.** Results are labeled STATIC, MOCK or
+  REAL-BROWSER. A mock pass, a syntax check or a source hash never
+  establishes complete-app acceptance.
+- **Historical plan.** The Workers/D1 backend design in `docs/plan-b/`
+  is historical and UNACCEPTED. Do not present it as the current stack.
