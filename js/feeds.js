@@ -77,6 +77,9 @@ export async function getManualEntries() {
 }
 
 export async function saveManualEntry(entryData) {
+    if (entryData.url && !isValidUrl(entryData.url)) {
+        entryData.url = '';
+    }
     return await applyMutation((data) => {
         if (!data.news) return false;
         const index = entryData.id ? data.news.manual.findIndex(m => m.id === entryData.id) : -1;
@@ -232,42 +235,49 @@ export async function refreshFeeds(onProgress) {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 15000);
                 
-                const response = await fetch(source.url, {
-                    method: 'GET',
-                    mode: 'cors',
-                    cache: 'no-store',
-                    signal: controller.signal
-                });
+                let reader;
                 
-                clearTimeout(timeoutId);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
-                const reader = response.body.getReader();
-                let bytesReceived = 0;
-                let chunks = [];
-                const decoder = new TextDecoder("utf-8");
-                let decodedText = "";
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    bytesReceived += value.length;
-                    if (bytesReceived > maxBodyBytes) {
-                        throw new Error('Response exceeded 1 MiB size limit');
+                try {
+                    const response = await fetch(source.url, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-store',
+                        signal: controller.signal
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
                     }
-                    decodedText += decoder.decode(value, { stream: true });
+                    
+                    reader = response.body.getReader();
+                    let bytesReceived = 0;
+                    let chunks = [];
+                    const decoder = new TextDecoder("utf-8");
+                    let decodedText = "";
+                    
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        bytesReceived += value.length;
+                        if (bytesReceived > maxBodyBytes) {
+                            throw new Error('Response exceeded 1 MiB size limit');
+                        }
+                        decodedText += decoder.decode(value, { stream: true });
+                    }
+                    decodedText += decoder.decode(); // flush
+                    
+                    newItems = parseFeed(decodedText, source);
+                    
+                    // Keep max 100 accepted items per source
+                    newItems = newItems.slice(0, 100);
+                    
+                    status = 'ok';
+                } finally {
+                    clearTimeout(timeoutId);
+                    if (reader && status !== 'ok') {
+                        reader.cancel().catch(() => {});
+                    }
                 }
-                decodedText += decoder.decode(); // flush
-                
-                newItems = parseFeed(decodedText, source);
-                
-                // Keep max 100 accepted items per source
-                newItems = newItems.slice(0, 100);
-                
-                status = 'ok';
             } catch (error) {
                 reason = error.message;
                 if (error.name === 'AbortError') {
@@ -284,7 +294,7 @@ export async function refreshFeeds(onProgress) {
                 if (sIdx !== -1) {
                     const currentSource = data.news.sources[sIdx];
                     // verify current source ID, config (URL), and request token
-                    if (currentSource.url === source.url && currentSource._lastUpdateToken === requestToken) {
+                    if (currentSource.url === source.url && currentSource.category === source.category && currentSource.name === source.name && currentSource._lastUpdateToken === requestToken) {
                         data.news.sources[sIdx] = { 
                             ...currentSource, 
                             status, 
@@ -332,7 +342,11 @@ export function createNewsCard(item, isManual, onDelete) {
     titleEl.style.marginBottom = '0.5rem';
     
     const linkEl = document.createElement('a');
-    linkEl.href = item.url;
+    if (item.url && isValidUrl(item.url)) {
+        linkEl.href = item.url;
+    } else {
+        linkEl.href = 'javascript:void(0)';
+    }
     linkEl.textContent = 'View article';
     linkEl.target = '_blank';
     linkEl.rel = 'noopener noreferrer';
