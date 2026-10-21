@@ -1,138 +1,543 @@
-/**
- * Storage and Durability Layer
- * Manages localStorage, seeded state, and one-click JSON export/import.
- */
+// --- Data Store (IndexedDB) ---
+// Bounded IndexedDB transaction-authority design.
 
-const STORAGE_KEY = 'dashboard_data';
-const SCHEMA_VERSION = 1;
-const APP_IDENTIFIER = 'dashboard';
+const DB_NAME = 'dashboard_store';
+const DB_VERSION = 1;
+const STORE_NAME = 'store_records';
+const RECORD_ID = 1;
 
-// Seed state when no data exists
-const SEED_STATE = {
-    goals: [],
-    places: [],
-    jobs: [],
-    college: {
-        timetable: [],
-        assignments: [],
-        exams: [],
-        fees: []
-    }
-};
-
-// Ensure data is loaded
 let currentData = null;
+let currentGeneration = null;
+let currentRevision = 0;
+let lastConflictAt = null;
+let unsavedDraft = null;
+let envelopeExtras = {};
+let storeStatus = 'uninitialized';
+let storeError = null;
 
-export function initStore() {
-    const rawData = localStorage.getItem(STORAGE_KEY);
-    if (!rawData) {
-        currentData = JSON.parse(JSON.stringify(SEED_STATE));
-        _save();
-    } else {
-        try {
-            currentData = JSON.parse(rawData);
-        } catch (e) {
-            console.error("Failed to parse local storage, falling back to seed", e);
-            currentData = JSON.parse(JSON.stringify(SEED_STATE));
+// WeakMap binding snapshotted cache to its specific token.
+const snapshotTokens = new WeakMap();
+
+function defaultData() {
+    return {
+        goals: [],
+        places: [],
+        jobs: [],
+        investments: [],
+        habits: [],
+        indicators: [],
+        metadata: {},
+        college: { timetable: [], assignments: [], exams: [], fees: [] },
+        news: { sources: [], cache: [], manual: [] }
+    };
+}
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error || new Error('IDB open denied'));
+        req.onblocked = () => reject(new Error('IDB open blocked'));
+    });
+}
+
+async function readRecord() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(RECORD_ID);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+        tx.oncomplete = () => db.close();
+        tx.onabort = tx.onerror = () => {
+            db.close();
+            reject(tx.error || new Error('readRecord tx aborted'));
+        };
+    });
+}
+
+function isValidId(id) {
+    return id && typeof id === 'string' && id.startsWith('place_') && id.length > 10;
+}
+
+// --- F-D1: import schema + record-shape validation ---------------
+function assertRecordArray(arr, name) {
+    if (!Array.isArray(arr)) {
+        throw new Error(`Invalid import: '${name}' must be an array.`);
+    }
+    for (let i = 0; i < arr.length; i++) {
+        if (!arr[i] || typeof arr[i] !== 'object' || Array.isArray(arr[i])) {
+            throw new Error(`Invalid import: '${name}[${i}]' must be an object.`);
         }
     }
 }
 
-function _save() {
-    if (!currentData) return;
+function validateImportData(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error('Invalid import: payload must be an object.');
+    }
+    if (data.goals === null || data.places === null || data.jobs === null || data.investments === null || data.habits === null || data.indicators === null) {
+        throw new Error('Invalid import: top-level collections cannot be null.');
+    }
+    assertRecordArray(data.goals ?? [], 'goals');
+    const goals = data.goals ?? [];
+    for (let i = 0; i < goals.length; i++) {
+        if (!Array.isArray(goals[i].history)) goals[i].history = [];
+    }
+    assertRecordArray(data.places ?? [], 'places');
+    assertRecordArray(data.jobs ?? [], 'jobs');
+    const jobs = data.jobs ?? [];
+    for (let i = 0; i < jobs.length; i++) {
+        if (!jobs[i].id || !jobs[i].title) {
+            throw new Error(`Invalid import: 'jobs[${i}]' missing required fields.`);
+        }
+    }
+    assertRecordArray(data.investments ?? [], 'investments');
+    assertRecordArray(data.habits ?? [], 'habits');
+    assertRecordArray(data.indicators ?? [], 'indicators');
+
+    const college = data.college;
+    if (college === null) {
+        throw new Error('Invalid import: "college" cannot be null.');
+    }
+    const c = college ?? { timetable: [], assignments: [], exams: [], fees: [] };
+    if (typeof c !== 'object' || Array.isArray(c)) {
+        throw new Error('Invalid import: "college" must be an object.');
+    }
+    if (c.timetable === null || c.assignments === null || c.exams === null || c.fees === null) {
+        throw new Error('Invalid import: college arrays cannot be null.');
+    }
+    assertRecordArray(c.timetable ?? [], 'college.timetable');
+    assertRecordArray(c.assignments ?? [], 'college.assignments');
+    assertRecordArray(c.exams ?? [], 'college.exams');
+    assertRecordArray(c.fees ?? [], 'college.fees');
+
+    const news = data.news;
+    if (news === null) {
+        throw new Error('Invalid import: "news" cannot be null.');
+    }
+    const n = news ?? { sources: [], cache: [], manual: [] };
+    if (typeof n !== 'object' || Array.isArray(n)) {
+        throw new Error('Invalid import: "news" must be an object.');
+    }
+    if (n.sources === null || n.cache === null || n.manual === null) {
+        throw new Error('Invalid import: news arrays cannot be null.');
+    }
+    assertRecordArray(n.sources ?? [], 'news.sources');
+    assertRecordArray(n.cache ?? [], 'news.cache');
+    assertRecordArray(n.manual ?? [], 'news.manual');
+}
+
+function normalizeImportData(data) {
+    const out = { ...data };
+    for (const k of ['goals', 'places', 'jobs', 'investments', 'habits', 'indicators']) {
+        if (!(k in out)) out[k] = [];
+    }
+    out.college = {
+        timetable: [], assignments: [], exams: [], fees: [],
+        ...(out.college || {})
+    };
+    out.news = { sources: [], cache: [], manual: [], ...(out.news || {}) };
+    if (!out.metadata) out.metadata = {};
+    return out;
+}
+
+// --- F-B1a retained: legacy null/duplicate place-ID migration ----
+function migratePlaces(data) {
+    if (!data || !Array.isArray(data.places)) return false;
+    let changed = false;
+    const seen = new Set();
+    data.places.forEach(p => {
+        if (!p || typeof p !== 'object') return;
+        if (!isValidId(p.id) || seen.has(p.id)) {
+            p.id = 'place_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            changed = true;
+        }
+        seen.add(p.id);
+    });
+    return changed;
+}
+
+// --- public API --------------------------------------------------
+export function getData() {
+    if (!currentData) {
+        currentData = defaultData();
+        currentRevision = 0;
+        currentGeneration = crypto.randomUUID();
+    }
+    // Deep copy to prevent callers mutating the in-memory committed state directly.
+    const snapshot = JSON.parse(JSON.stringify(currentData));
+    snapshotTokens.set(snapshot, { generation: currentGeneration, revision: currentRevision });
+    return snapshot;
+}
+
+function syncFromRecord(record) {
+    currentData = record.data;
+    currentRevision = record.revision;
+    currentGeneration = record.generation;
+    if (record.envelopeExtras) envelopeExtras = record.envelopeExtras;
+}
+
+export async function initStore() {
+    // Gracefully close any existing live channel before re-initializing
+    if (globalThis._dashboardStoreBc && typeof globalThis._dashboardStoreBc.close === 'function') {
+        globalThis._dashboardStoreBc.close();
+    }
+    globalThis._dashboardStoreBc = undefined;
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+        let db = await openDB();
+        let record = await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const getReq = store.get(RECORD_ID);
+            let adoptedRecord = null;
+            getReq.onsuccess = () => {
+                adoptedRecord = getReq.result;
+                if (!adoptedRecord) {
+                    // Fix 3: Legacy Upgrade Compatibility
+                    let legacyData = null;
+                    try {
+                        const raw = localStorage.getItem('dashboard_data');
+                        if (raw) legacyData = JSON.parse(raw);
+                    } catch(e) {}
+                    // Normalize the legacy payload to ensure valid shape without mutating localStorage
+                    if (legacyData && typeof legacyData === 'object' && !Array.isArray(legacyData)) {
+                        legacyData = normalizeImportData(legacyData);
+                    } else {
+                        legacyData = defaultData();
+                    }
+
+                    adoptedRecord = {
+                        id: RECORD_ID,
+                        storageFormatVersion: 1,
+                        generation: crypto.randomUUID(),
+                        revision: 1,
+                        savedAt: new Date().toISOString(),
+                        data: legacyData,
+                        envelopeExtras: {}
+                    };
+                    store.put(adoptedRecord);
+                }
+            };
+            getReq.onerror = () => reject(getReq.error);
+            tx.oncomplete = () => {
+                db.close();
+                resolve(adoptedRecord);
+            };
+            tx.onabort = tx.onerror = () => {
+                db.close();
+                reject(tx.error || new Error('initStore tx aborted'));
+            };
+        });
+        syncFromRecord(record);
+        // Listen for other tabs changes to keep sync
+        try {
+            if (typeof BroadcastChannel !== 'undefined' && !globalThis._dashboardStoreBc) {
+                globalThis._dashboardStoreBc = new BroadcastChannel('dashboard_store_sync');
+                globalThis._dashboardStoreBc.onmessage = async (e) => {
+                    if (e.data === 'sync') {
+                        try {
+                            const rec = await readRecord();
+                            if (rec) syncFromRecord(rec);
+                        } catch (readErr) {
+                            console.warn('Cross-tab sync read failed:', readErr);
+                        }
+                    }
+                };
+            }
+        } catch (bcErr) {
+            throw new Error('BroadcastChannel setup failed: ' + bcErr.message);
+        }
+        
+        storeStatus = 'ready';
+        storeError = null;
+        return { status: 'ready', generation: currentGeneration, revision: currentRevision };
     } catch (e) {
-        // Handle quota exceeded gracefully (5 MiB budget)
-        console.error("Failed to save data. Budget might be exceeded.", e);
-        alert("Warning: Could not save data. Browser storage limit might be reached.");
+        storeStatus = 'degraded';
+        storeError = e.message;
+        console.error('initStore IDB failure:', e);
+        return { status: 'degraded', error: e.message };
     }
 }
 
-export function getData() {
-    if (!currentData) initStore();
-    return currentData;
+// Every save is awaited by callers, runs serialized, and reports its outcome.
+// On storage failure the throw propagates and memory is re-synced to disk;
+// on cross-tab conflict the unsaved draft is exported and memory adopts the
+// latest disk state. It never resolves "success" for a write that failed.
+export async function saveData(data) {
+    if (storeStatus !== 'ready') {
+        throw new Error('Save rejected: store is in degraded mode. ' + (storeError || 'Initialization required.'));
+    }
+    const token = snapshotTokens.get(data);
+    if (!token) {
+        throw new Error('Save rejected: untracked raw saveData input. You must pass a tracked snapshot from getData().');
+    }
+    
+    // We snapshot the expected baseline
+    const expectedGeneration = token.generation;
+    const expectedRevision = token.revision;
+    data = JSON.parse(JSON.stringify(data)); // Break caller reference
+    
+    let db;
+    try {
+        db = await openDB();
+    } catch (e) {
+        unsavedDraft = data;
+        throw new Error('Save failed: IDB open denied. ' + e.message);
+    }
+    
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        
+        const getReq = store.get(RECORD_ID);
+        getReq.onsuccess = () => {
+            const record = getReq.result;
+            if (!record) {
+                tx.abort();
+                return; // handled in onabort
+            }
+            if (record.generation !== expectedGeneration || record.revision !== expectedRevision) {
+                // CAS Mismatch
+                syncFromRecord(record); // Adopt authoritative state
+                lastConflictAt = new Date().toISOString();
+                tx.abort();
+                return;
+            }
+            
+            const nextRecord = {
+                ...record,
+                revision: record.revision + 1,
+                savedAt: new Date().toISOString(),
+                data: data
+            };
+            store.put(nextRecord);
+        };
+        
+        tx.oncomplete = () => {
+            db.close();
+            syncFromRecord({
+                id: 1,
+                storageFormatVersion: 1,
+                generation: expectedGeneration,
+                revision: expectedRevision + 1,
+                savedAt: new Date().toISOString(),
+                data: data,
+                envelopeExtras: envelopeExtras
+            });
+            try {
+                if (typeof BroadcastChannel !== 'undefined') {
+                    const bc = new BroadcastChannel('dashboard_store_sync');
+                    bc.postMessage('sync');
+                    bc.close();
+                }
+            } catch (notifyErr) {
+                console.warn('Commit successful, but cross-tab notification failed:', notifyErr);
+            }
+            resolve({ committed: true, conflict: false });
+        };
+        
+        tx.onabort = tx.onerror = () => {
+            db.close();
+            unsavedDraft = data;
+            const err = tx.error || new Error('Transaction aborted');
+            if (lastConflictAt && (currentGeneration !== expectedGeneration || currentRevision !== expectedRevision)) {
+                // Determine if it was the CAS mismatch abort
+                try {
+                    exportDraft(data);
+                    reject(new Error('Conflict: another tab updated the data first. Your current data is unchanged; the draft was downloaded.'));
+                } catch (draftErr) {
+                    reject(new Error('Conflict: another tab updated the data first. Your unsaved draft is preserved in memory. Please manually Export Unsaved Draft and Reload Latest.'));
+                }
+            } else {
+                reject(new Error('Save failed: ' + err.message));
+            }
+        };
+    });
 }
 
-export function saveData(data) {
-    currentData = data;
-    _save();
+export function getLastConflict() {
+    return lastConflictAt;
 }
 
-/**
- * Downloads a JSON file with the current data wrapped in an envelope.
- */
-export function exportData() {
-    if (!currentData) initStore();
-    
-    const envelope = {
-        app: APP_IDENTIFIER,
-        schemaVersion: SCHEMA_VERSION,
-        exportedAt: new Date().toISOString(),
-        data: currentData
-    };
-    
-    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
+// --- export / import (F-D1, F-D2) --------------------------------
+function downloadJson(filename, payload) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dashboard-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
-    
-    // Cleanup
-    setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }, 100);
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
-/**
- * Reads a JSON file, validates the envelope, and safely overwrites local storage.
- * @param {File} file - The selected JSON file
- * @param {Function} onComplete - Callback after import
- */
-export function importData(file, onComplete) {
-    const reader = new FileReader();
+export async function exportData() {
+    let record;
+    try {
+        record = await readRecord();
+    } catch(e) {}
     
-    reader.onload = (e) => {
+    const dataToExport = record ? record.data : getData();
+    const extras = record ? record.envelopeExtras : envelopeExtras;
+    
+    const envelope = {
+        app: 'dashboard',
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        data: dataToExport
+    };
+    
+    for (const k of Object.keys(extras || {})) {
+        if (!(k in envelope)) envelope[k] = extras[k];
+    }
+    
+    downloadJson(`dashboard-backup-${new Date().toISOString().split('T')[0]}.json`, envelope);
+}
+
+// Draft recovery: the losing tab's unsaved work is downloadable, never lost.
+export function exportDraft(data) {
+    try {
+        downloadJson(`dashboard-draft-${Date.now()}.json`, {
+            app: 'dashboard',
+            schemaVersion: 1,
+            exportedAt: new Date().toISOString(),
+            draft: true,
+            data: data || unsavedDraft || getData()
+        });
+    } catch (e) {
+        console.error('Draft export failed:', e);
+        throw e;
+    }
+}
+
+// file: { text } in tests, or a File in the browser.
+export function importData(file, onComplete) {
+    if (storeStatus !== 'ready') {
+        alert('Import rejected: store is in degraded mode. ' + (storeError || 'Initialization required.'));
+        if (onComplete) onComplete({ committed: false, conflict: false, error: new Error('Degraded mode') });
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (e) => {
         try {
-            const result = JSON.parse(e.target.result);
+            const parsed = JSON.parse(e.target.result);
+            // Re-check schema validation to strictly enforce rules
+            if (parsed.app !== 'dashboard') throw new Error("Invalid import: wrong app");
+            if (parsed.schemaVersion !== 1) throw new Error("Invalid import: unknown schemaVersion");
             
-            // Loud validation
-            if (!result || typeof result !== 'object') {
-                throw new Error("Invalid JSON format");
-            }
-            if (result.app !== APP_IDENTIFIER) {
-                throw new Error(`Unknown app identifier: ${result.app}. Expected '${APP_IDENTIFIER}'.`);
-            }
-            if (result.schemaVersion !== SCHEMA_VERSION) {
-                throw new Error(`Unknown schema version: ${result.schemaVersion}. Supported version is ${SCHEMA_VERSION}.`);
-            }
-            if (!result.data || typeof result.data !== 'object') {
-                throw new Error("Missing or invalid 'data' payload in export file.");
+            let payload = null;
+            // Validate BEFORE any confirmation or disk write.
+            payload = parsed.data;
+            validateImportData(payload);
+            const data = normalizeImportData(payload);
+            migratePlaces(data);
+            
+            // Baseline capture before confirm
+            const snapshot = getData();
+            const baseToken = snapshotTokens.get(snapshot);
+            
+            const confirmed = confirm(
+                `Import backup from ${parsed.exportedAt || 'unknown date'}?\n` +
+                'This REPLACES all current dashboard data. This cannot be undone.'
+            );
+            if (!confirmed) return;
+            
+            const extras = { ...parsed };
+            delete extras.data;
+            delete extras.app;
+            delete extras.schemaVersion;
+            delete extras.exportedAt;
+
+            let db;
+            try {
+                db = await openDB();
+            } catch(ex) {
+                throw new Error("IDB open denied for import");
             }
             
-            const goalCount = Array.isArray(result.data.goals) ? result.data.goals.length : 0;
-            const previewMsg = `Restore preview:\n\nExported at: ${result.exportedAt}\nGoals found: ${goalCount}\n\nWarning: This will completely replace your current local data. Are you sure you want to proceed?`;
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                
+                let adoptedRecord = null;
+                const getReq = store.get(RECORD_ID);
+                getReq.onsuccess = () => {
+                    const record = getReq.result;
+                    if (record && baseToken && (record.generation !== baseToken.generation || record.revision !== baseToken.revision)) {
+                        syncFromRecord(record);
+                        lastConflictAt = new Date().toISOString();
+                        tx.abort();
+                        return;
+                    }
+                    
+                    adoptedRecord = {
+                        id: RECORD_ID,
+                        storageFormatVersion: 1,
+                        generation: crypto.randomUUID(),
+                        revision: record ? record.revision + 1 : 1,
+                        savedAt: new Date().toISOString(),
+                        data: data,
+                        envelopeExtras: extras
+                    };
+                    store.put(adoptedRecord);
+                };
+                
+                tx.oncomplete = () => {
+                    db.close();
+                    syncFromRecord(adoptedRecord);
+                    try {
+                        if (typeof BroadcastChannel !== 'undefined') {
+                            const bc = new BroadcastChannel('dashboard_store_sync');
+                            bc.postMessage('sync');
+                            bc.close();
+                        }
+                    } catch (notifyErr) {
+                        console.warn('Import successful, but cross-tab notification failed:', notifyErr);
+                    }
+                    resolve();
+                };
+                
+                tx.onabort = tx.onerror = () => {
+                    db.close();
+                    const err = tx.error || new Error('Transaction aborted');
+                    // Ensure the conflict was triggered by THIS transaction
+                    if (lastConflictAt && baseToken && (currentGeneration !== baseToken.generation || currentRevision !== baseToken.revision)) {
+                        reject(new Error('Conflict: another tab updated the data first. Your current data is unchanged; the import draft was downloaded.'));
+                    } else {
+                        reject(new Error('Import transaction failed: ' + err.message));
+                    }
+                };
+            });
             
-            if (confirm(previewMsg)) {
-                currentData = result.data;
-                _save();
-                alert("Data imported successfully.");
-                if (onComplete) onComplete();
-            }
-            
+            alert('Data imported successfully!');
+            if (onComplete) onComplete({ committed: true, conflict: false });
         } catch (err) {
-            alert(`Import failed: ${err.message}`);
-            console.error("Import error:", err);
+            console.error('Import error:', err);
+            if (err && err.message && err.message.includes('Conflict')) {
+                try {
+                    // Try parsing again for the fallback block scope if payload isn't populated via try block closure reliably
+                    let p = JSON.parse(e.target.result).data;
+                    exportDraft(p);
+                    alert('Import blocked: another tab updated the data first. Your current data is unchanged; the import draft was downloaded.');
+                } catch(draftErr) {
+                    let p = JSON.parse(e.target.result).data;
+                    unsavedDraft = p;
+                    alert('Import blocked: another tab updated the data first. Your draft is preserved in memory and can be exported manually.');
+                }
+            } else {
+                alert('Import failed: ' + (err && err.message ? err.message : err));
+            }
         }
     };
-    
-    reader.onerror = () => {
-        alert("Failed to read file.");
-    };
-    
-    reader.readAsText(file);
+    if (typeof file === 'string') reader.readAsText(file);
+    else reader.readAsText(file instanceof Blob || file instanceof File ? file : new Blob([file.text !== undefined ? file.text : file]));
 }
