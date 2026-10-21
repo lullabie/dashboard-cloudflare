@@ -184,6 +184,17 @@ async function runTests() {
         fail('Malformed legacy recovery failed', { places: recovered.places, goals: recovered.goals });
     }
 
+    // V6: the recovery record names every repaired field and preserves the
+    // original localStorage bytes in the durable record envelopeExtras.
+    const durable = dbState[1];
+    const extras = durable && durable.envelopeExtras;
+    const expectedRaw = JSON.stringify({ places: 'not-an-array', goals: 42 });
+    if (extras && Array.isArray(extras.legacyRecovery) && extras.legacyRecovery.includes('places') && extras.legacyRecovery.includes('goals') && extras.legacyRecovery.length === 2 && extras.legacyOriginalRaw === expectedRaw) {
+        pass('Malformed legacy recovery records all repaired fields and preserves original bytes');
+    } else {
+        fail('Malformed legacy recovery record incomplete', extras);
+    }
+
     // V5-STORE-02 fix B: reader error and abort each settle exactly once
     await new Promise((resolve) => {
         let calls = 0;
