@@ -5,11 +5,7 @@ import { getData, saveData } from './store.js';
 
 export function getJobs() {
     const data = getData();
-    if (!data.jobs) {
-        data.jobs = [];
-        saveData(data);
-    }
-    return data.jobs;
+    return data.jobs || [];
 }
 
 export function saveJob(jobData) {
@@ -24,14 +20,14 @@ export function saveJob(jobData) {
         jobData.id = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         data.jobs.push(jobData);
     }
-    saveData(data);
+    return saveData(data);
 }
 
 export function deleteJob(jobId) {
     const data = getData();
     if (!data.jobs) return;
     data.jobs = data.jobs.filter(j => j.id !== jobId);
-    saveData(data);
+    return saveData(data);
 }
 
 export function createJobCard(job, onEdit, onDelete) {
