@@ -30,3 +30,10 @@ Excluded: MANIFEST.txt files, progress-summary.patch, helper patches, result dum
 - Import closure gap: js/main.js imports ./visuals/charts.js. No verified file exists. index.html loads js/chart.umd.js. No verified file exists. Both stay unresolved until Codex designates an owner or a source.
 - Five v5 findings stay open until lanes A and B deliver and Codex reviews the patches.
 - Backend (Workers/D1) stays UNACCEPTED. No deployment trigger exists on this branch.
+
+## Publication addendum — 2026-10-21 20:05 IST
+
+- Branch codex/v5-review created from main 29d43ff. All 35 candidate paths published by per-file commits, except .github/workflows/review-tests.yml: BLOCKED, 403 on write (the GitHub App lacks the workflows permission). The file stays staged locally in the Track E delivery.
+- Lane D delivered three real-browser specs, now on this branch under qa/v4/: ui-browser.spec.mjs, storage-browser.spec.mjs, feeds-browser.spec.mjs. Prep runs against the selected pre-fix sources (Firefox, real IndexedDB): UI 11 PASS / 1 FAIL (V5-STORE-02); storage 5 PASS / 1 FAIL (V5-STORE-01); feeds 3 PASS / 3 FAIL (V5-FEEDS-01, V5-FEEDS-02, V5-FEEDS-03). All five v5 findings reproduce in a real browser. These prep runs are not Phase 2 acceptance; final results must name the fixed assembled commit.
+- Lane E delivered the fixed runner, now on this branch: scripts/run-review-tests.mjs requires qa/v4/browser-results.json with all registry browser IDs at PASS before any release PASS. The v4 runner exited 0 with zero browser cases run; that hole is closed.
+- Snapshot push route (push_files) is blocked: 403 at tree creation. Per-file writes are the working route on this branch.
