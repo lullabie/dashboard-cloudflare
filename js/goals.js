@@ -53,7 +53,7 @@ export function saveGoal(goalData) {
         data.goals.push(newGoal);
     }
     
-    saveData(data);
+    return saveData(data);
 }
 
 export function toggleArchive(goalId) {
@@ -69,7 +69,7 @@ export function toggleArchive(goalId) {
         });
         goal.status = newStatus;
         goal.updatedAt = new Date().toISOString();
-        saveData(data);
+        return saveData(data);
     }
 }
 
@@ -115,19 +115,19 @@ export function cycleOccurrence(goalId, dateStr) {
     });
     
     goal.updatedAt = new Date().toISOString();
-    saveData(data);
+    return saveData(data);
 }
 
 export function calculateStreak(occurrences, todayStr) {
     if (!occurrences) return 0;
     
     let streak = 0;
-    // We append noon so that it doesn't shift days due to minor timezone offsets 
-    // when using Date object arithmetic. 'America/Toronto' is used for string generation.
-    const today = new Date(todayStr + 'T12:00:00'); 
+    // Use UTC noon to safely add/subtract days without timezone drift
+    const today = new Date(todayStr + 'T12:00:00Z'); 
     
     let currentDate = new Date(today);
-    const todayStatus = occurrences[getLocalDateString(currentDate)];
+    const getCalendarDate = (d) => d.toISOString().split('T')[0];
+    const todayStatus = occurrences[getCalendarDate(currentDate)];
     
     // If today was explicitly missed or late, the streak is dead.
     if (todayStatus === 'missed' || todayStatus === 'late') {
@@ -140,13 +140,13 @@ export function calculateStreak(occurrences, todayStr) {
     }
     
     // Move to yesterday and go backwards
-    currentDate.setDate(currentDate.getDate() - 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() - 1);
 
     while (true) {
-        const dateStr = getLocalDateString(currentDate);
+        const dateStr = currentDate.toISOString().split('T')[0];
         if (occurrences[dateStr] === 'done') {
             streak++;
-            currentDate.setDate(currentDate.getDate() - 1);
+            currentDate.setUTCDate(currentDate.getUTCDate() - 1);
         } else {
             break;
         }
@@ -164,7 +164,8 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     card.dataset.id = goal.id;
     
     const occurrences = goal.occurrences || {};
-    const doneDays = Object.values(occurrences).filter(status => status === 'done').length;
+    const manualCheckIns = Array.isArray(goal.checkIns) ? goal.checkIns.length : (typeof goal.checkIns === 'number' ? goal.checkIns : 0);
+    const doneDays = Object.values(occurrences).filter(status => status === 'done').length + manualCheckIns;
 
     const target = goal.target || 1;
     const progress = Math.min(100, Math.round((doneDays / target) * 100));
@@ -192,9 +193,9 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     // History Timeline (last 7 days)
     let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
     for (let i = 6; i >= 0; i--) {
-        const d = new Date(todayStr + 'T12:00:00');
-        d.setDate(d.getDate() - i);
-        const dateStr = getLocalDateString(d);
+        const d = new Date(todayStr + 'T12:00:00Z');
+        d.setUTCDate(d.getUTCDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
         const status = occurrences[dateStr] || 'none';
         
         let bgColor = 'var(--surface-hover)'; // default 'none'
