@@ -48,7 +48,7 @@ writeBrowserResults({
   "testedCommit": "<7-40 hex chars>",
   "storeSha256": "<64 lower hex>",
   "feedsSha256": "<64 lower hex>",
-  "runtime": "<string, e.g. node v24.20.0>",
+  "runtime": "<string: node version plus actual browser name/version, e.g. node v24.20.0; browser Chromium 141.0.7390.0 (QA_BROWSER=chromium)>",
   "runId": "<string, the QA_RUN_ID of the producing run>",
   "generatedAt": "<ISO 8601 timestamp>",
   "cases": [
@@ -65,7 +65,7 @@ Field rules:
 | `testedCommit` | The frozen commit under test. Must equal the runner's commit. A mismatch is a stale-commit defect. |
 | `storeSha256` | SHA-256 of `js/store.js` in the tested tree, computed by the writer. Must equal the tree value at gate time. |
 | `feedsSha256` | SHA-256 of `js/feeds.js` in the tested tree, computed by the writer. Must equal the tree value at gate time. |
-| `runtime` | Non-empty string. Names the runner and version (for example `node v24.20.0`). Browser name and version go in each case `detail`. |
+| `runtime` | Non-empty string. Names the node version AND the actual browser name and version recorded via the shared helper `qa/v4/browser-launch.mjs` (for example `node v24.20.0; browser Chromium 141.0.7390.0 (QA_BROWSER=chromium)`). A hardcoded browser label is a defect: the name and version must come from the launched browser. When launch fails, the string names the requested selection as not launched. |
 | `runId` | Must equal the `QA_RUN_ID` of the validating run. A report from an earlier run is a stale-report defect. |
 | `generatedAt` | ISO 8601. Must not be in the future and must be at most 120 min old at gate time (runner flag `--max-age-min`). |
 | `cases` | Array. No duplicate `id`. Each entry needs `id`, `status`, `boundary`, `detail`. |
