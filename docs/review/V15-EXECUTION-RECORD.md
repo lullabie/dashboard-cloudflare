@@ -114,3 +114,64 @@ assertions unchanged.
   fallback, and asset-manifest-on-host items remain NOT RUN.
 - Merge/deploy: require Codex acceptance, host acceptance, and
   user approval.
+
+## Addendum 2026-10-23 — Codex full result on 2d8a688, packager P1
+
+Codex independent FULL result on the documentation head 2d8a688
+(application and tests identical to 7883921): overall exit 1.
+Browser 33 required cases PASS (34 total), negative 17/17, 21-file
+stage PASS, but the Node phase ran 18/19 files: the packager test
+failed on Windows. Codex runId bb1fb36e-360b-4b7c-ae56-17f9683c1975,
+Node 24.19, Chrome 155. No overall gate PASS is claimed for
+2d8a688; Codex's raw failed log is preserved under that runId.
+
+Two tooling defects, same owner (Lane D), fixed in one bundle:
+
+1. P1, scripts/package-static-assets.mjs: --stage ran
+   rmSync(staged, {recursive:true}) BEFORE validating source
+   problems or the source/output relationship. `--stage src src`
+   deleted the source assets and then failed copyFile ENOENT;
+   an ancestor output could delete the whole source tree. Codex
+   reproduced this only on an explicitly resolved disposable
+   fixture; the source repo was untouched.
+2. __tests__/package-v15-manifest.test.mjs: repo root derived via
+   new URL('..', import.meta.url).pathname (breaks on Windows:
+   C:\C:\Users..., MODULE_NOT_FOUND), the child spawned as 'node',
+   and the negative case accepted ANY exit 1, so the loader error
+   false-passed as an expected rejection.
+
+Fix, frozen at 6f5a74bcfca4d01f44fcc59d073563e3b6e0ff36 (parent
+2d8a688; exactly two files changed; application files identical
+to 7883921):
+
+- The packager validates the source (REQUIRED, FORBIDDEN,
+  UNCLASSIFIED problems) before any output mutation; an invalid
+  source exits 1 with the output untouched.
+- Stage target and source are compared after realpath resolution
+  (deepest existing ancestor + remainder), so symlink and
+  junction aliases cannot bypass the boundary. Stage == source
+  and stage as an ancestor of source are refused (exit 2).
+- No recursive erase of unowned folders. Ownership is a sibling
+  marker (<staged>.pkg-owned.json) listing staged files. A
+  pre-existing non-empty target without a valid marker is refused
+  untouched. A restage deletes only marker-listed files; a user
+  file placed in an owned folder survives and is reported EXTRA.
+- The test uses fileURLToPath and process.execPath. Every negative
+  case asserts the expected validation reason and the absence of
+  loader errors. New cases: self-stage, ancestor stage, symlink
+  alias, invalid source leaves target uncreated, unowned target
+  refused, user-file preservation. 19/19 PASS, Node 24.20.
+
+Coordinator gate on frozen 6f5a74b (fresh clone, sandbox Chromium
+156.0.8078.4, Node v24.20.0): full runner exit 0, LOCAL GATE PASS,
+33 required browser cases PASS (34 total), negative 17/17, runId
+6287e6b2-849e-4182-8f4f-f9bc33fa29f0. Evidence:
+docs/review/evidence/v15/packager-fix-browser-results.json
+(byte-identical copy of the gate artifact, sha256 fd7c09b1...).
+The normal direct stage command also passes on the frozen tree.
+
+Standing limits, unchanged: the pages workflow replacement is
+still NOT applied to the branch (GitHub API 403 on
+.github/workflows), so the eight audit blockers are NOT all
+repaired at branch level; host acceptance is NOT RUN; PR #2 stays
+draft; no merge, no deploy, no release approval.

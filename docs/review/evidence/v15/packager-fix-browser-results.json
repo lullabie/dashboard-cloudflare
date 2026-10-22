@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 2,
+  "testedCommit": "6f5a74bcfca4d01f44fcc59d073563e3b6e0ff36",
+  "storeSha256": "3d96eee79e7e34405d78049117a0741e7b7b09a0e6b7f5bb260dc32ea839e35c",
+  "feedsSha256": "b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88",
+  "runtime": "node v24.20.0; browser Chromium 156.0.8078.4 (QA_BROWSER=chromium)",
+  "runId": "6287e6b2-849e-4182-8f4f-f9bc33fa29f0",
+  "generatedAt": "2026-10-22T19:17:00.760Z",
+  "cases": [
+    {
+      "id": "V15-AUDIT-01",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "job created through the actual form (company/role, no title) rendered, survived reload, and round-tripped through export and import into a clean context"
+    },
+    {
+      "id": "V15-AUDIT-02",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "stale modal submit blocked with an explicit conflict; modal stayed open with the draft intact; the other tab's notes and the original role are durable"
+    },
+    {
+      "id": "V15-AUDIT-03",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "imported markup target created no DOM element, rendered with the finite fallback (0 / 1 done), and stayed verbatim in the data"
+    },
+    {
+      "id": "V15-AUDIT-04",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "habit with invalid createdAt rendered the UNKNOWN eligibility safe state with no page error; value retained verbatim"
+    },
+    {
+      "id": "V15-AUDIT-05",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "indicators view carries no blank canvas and no FX-trend claim; the cards container is retained"
+    },
+    {
+      "id": "TEST-FEEDS-001",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "cache persisted in IndexedDB; generation a06c7729 stable across reload; valid refresh preserved item 1 and added item 2"
+    },
+    {
+      "id": "TEST-FEEDS-002",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "paused refresh committed after tab B edit; refreshed item and tab B manual entry both present"
+    },
+    {
+      "id": "TEST-FEEDS-003",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "reversed order: newer items kept, older response blocked by token; deleted source: late response committed nothing; oversize, malformed and HTTP 500 each preserved the last valid cache"
+    },
+    {
+      "id": "V5-FEEDS-01",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "stalled body settled at 15075ms with timeout error; last valid cache preserved"
+    },
+    {
+      "id": "V5-FEEDS-02",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "category edit during fetch blocked the stale commit; no items committed"
+    },
+    {
+      "id": "V5-FEEDS-03",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "save path rejected or dropped the javascript: URL (save resolved); blank and https records preserved; legacy link rendered inert (anchor hrefs: [])"
+    },
+    {
+      "id": "V8-JOBS-OTHER",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "clicked the real chart Other bar at canvas fraction 0.35,0.86; filter value 'other' with label 'Other'; list showed ExplicitOtherCo + PendingCo + BlankCo (3); Other+Toronto narrowed to 2; All reset restored 4; zero page errors"
+    },
+    {
+      "id": "V13-PLACES-01",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "poisoned load repaired the missing, duplicate and invalid place ids at adoption with the valid neighbour id byte-identical and exactly three provenance entries (original objects at indices 1, 2, 3) on the durable record; the edit of the formerly id-less place updated one record (count stayed 4, no original left beside the edit); delete by repaired id removed exactly the duplicate-repaired record; a cross-tab raw poisoned append was adopted with a repaired id, persisted, and its provenance merged behind the existing entries; after reload the ids were byte-identical, the export carried the same ids and provenance, and the exact export imported with committed:true into a clean context with the same ids and provenance on disk; two simultaneous cross-tab adopters of a fresh poisoned record were captured under a native IndexedDB barrier hold (no claim could settle during capture) and settled on one canonical race id; the losing tab provably stale barrier snapshot save was rejected as a conflict with the durable record verified unchanged on disk; a fresh post-settle snapshot from the other tab committed its edit under the canonical id at the next revision; and the losing tab edit then committed through a fresh snapshot with the canonical id intact on disk, on both tabs after reload, and in the export. Race evidence: {\"poisonRevision\":2,\"diskRevisionAtCapture\":2,\"winnerId\":\"place_1792696591522_uv24uquu6\",\"winnerRevision\":3,\"captures\":{\"A\":{\"mintId\":\"place_1792696591524_ru6pofcvz\",\"holdState\":\"held\",\"fallback\":false,\"diskProof\":null,\"staleBasis\":\"mint-differs\",\"impliedTokenRevision\":2},\"B\":{\"mintId\":\"place_1792696591522_uv24uquu6\",\"holdState\":\"held\",\"fallback\":false,\"diskProof\":{\"revision\":2,\"raceId\":null,\"whileHeld\":true},\"staleBasis\":\"disk-proof\",\"impliedTokenRevision\":2}}}"
+    },
+    {
+      "id": "V10-RECOVERY-01",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "poisoned native-IDB record (goals[0]=null, jobs[1]=null) loaded with zero pageerrors; valid goal and job rendered; second page adopted the unrelated cross-tab save cleanly with valid data intact; both exports keep the malformed entries only as quarantine metadata (path/index/value) and the clean data plus the unrelated save intact, before and after reload"
+    },
+    {
+      "id": "V11-RECOVERY-02",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "export before any save or re-init carried the partitioned neighbours in order with exactly three quarantine entries (jobs[1]=null, jobs[2]=object with no identifying field, jobs[3]=object missing id, each with its original value) and imported with committed:true into a clean context, where the data and the quarantine survived an unrelated save, reload and a second export, and the second export re-imported with committed:true into a third clean context; with the disk record newer than the page cache and no sync notification, the export carried the newer disk dataset D2 partitioned with its quarantine (goals[0]=null), not the cached D1"
+    },
+    {
+      "id": "TEST-STORE-001",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "poisoned higher-version DB forces degraded init; failed re-init stays degraded; saves reject with the degraded error; getData reads and exportData downloads"
+    },
+    {
+      "id": "TEST-STORE-002",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "after fault removal an explicit initStore restores ready; one save commits (revision 1 -> 2); a real reload preserves the record"
+    },
+    {
+      "id": "TEST-STORE-003",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "three initStore calls construct 3 channels, close 2, leave 1 active; a save in tab A becomes visible in tab B through the native BroadcastChannel sync"
+    },
+    {
+      "id": "TEST-STORE-004",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "saveData resolves { committed: true, conflict: false } while postMessage throws; the durable record advances exactly one revision and survives reload"
+    },
+    {
+      "id": "V5-STORE-01",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "legacy null/missing place IDs are repaired by the migrator before the first durable put; the one valid ID and all records survive; malformed legacy input yields explicit recovery"
+    },
+    {
+      "id": "TEST-STORE-005",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "save over a natively deleted record rejects with Save failed, explicit re-init recovers and the next save is durable across reload; untracked input rejects; two in-flight saves settle as exactly one commit and one Conflict rejection with one durable winner"
+    },
+    {
+      "id": "TEST-UI-001",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "app booted on the local origin; all 9 nav views rendered; zero uncaught page errors; zero failed module requests"
+    },
+    {
+      "id": "TEST-UI-002f",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "export downloaded and parsed; exportedAt 2026-10-22T19:16:45.104Z; goals in file: QA Goal One 601541"
+    },
+    {
+      "id": "V5-STORE-02",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "conflict produced exactly one confirm, one blocked alert, and one draft download; the UI refreshed to the adopted data without a reload; stored data kept all goals"
+    },
+    {
+      "id": "TEST-UI-002e",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "the same export file imported twice; each import settled with one success alert and identical resulting data"
+    },
+    {
+      "id": "TEST-UI-002d",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "malformed JSON and wrong-app files each produced exactly one import-failed alert; current data unchanged; zero uncaught errors"
+    },
+    {
+      "id": "TEST-UI-002c",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "dismissing the import confirm cancelled cleanly: no alert, no download, no data change, file input reset for the next selection"
+    },
+    {
+      "id": "TEST-UI-002a",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "degraded save rejected with alert \"Save rejected: Storage is in a degraded state.\"; modal stayed open; input retained verbatim; nothing was written"
+    },
+    {
+      "id": "TEST-UI-002b",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "after a clean reload the same title saved successfully; modal closed; goal rendered; no alert on retry"
+    },
+    {
+      "id": "TEST-UI-002g",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "keyboard opened the modal; focus started on goal-title; Tab order goal-title -> goal-notes -> goal-target -> goal-show-notes -> btn-cancel-modal -> Save; cancel returned focus to btn-create-goal"
+    },
+    {
+      "id": "TEST-UI-002h",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "no horizontal overflow at 320x568; scrollWidths today 320, goals 320, settings 320"
+    },
+    {
+      "id": "TEST-UI-002i",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "no horizontal overflow at 375px width; scrollWidths today 375, goals 375, settings 375"
+    },
+    {
+      "id": "TEST-UI-002j",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "reduced-motion media matches; 2 stylesheet media rule(s); computed durations transition 1e-05s, animation 1e-05s"
+    },
+    {
+      "id": "TEST-HABITS-001",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "completedAt occurrence created for local day 2026-10-22, preserved across reload with the same timestamp, removed by second toggle"
+    }
+  ]
+}

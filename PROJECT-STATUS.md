@@ -116,3 +116,15 @@ Workers/D1 behavior, Free CPU limits and unattended updates remain
   registry cases (see docs/ACCEPTANCE.md). Complete-app acceptance
   has not: the gaps listed there remain open, host acceptance is
   NOT RUN, and nothing in this document is a shippable claim.
+
+## V15 packager-safety correction (2026-10-23)
+
+Codex's full run on 2d8a688 ended exit 1 (Node 18/19) and found a
+P1 in the packager's --stage path (delete-before-validate) plus a
+Windows loader bug in its test. Both are fixed and frozen at
+6f5a74b (two tooling files only; application identical to
+7883921). Coordinator gate on 6f5a74b: runner exit 0, 33 required
+browser cases PASS, negative 17/17, runId 6287e6b2. The branch
+pages workflow is still unchanged (403), host acceptance is
+NOT RUN, and no release approval exists. Detail:
+docs/review/V15-EXECUTION-RECORD.md addendum.
