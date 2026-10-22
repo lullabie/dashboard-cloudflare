@@ -1,8 +1,7 @@
 # Dashboard project status
 
-Updated: 2026-10-22 (post-V14B). Authority for current state. Supersedes
-the 2026-10-21 status (v3/v4 lane state, now historical; the lane
-records remain under docs/review/).
+Updated: 2026-10-22 (post-V15). Authority for current state. Supersedes
+the post-V14B status below, which is retained as the V14B section.
 
 ## Current state
 
@@ -13,13 +12,13 @@ records remain under docs/review/).
 - Repository: `lullabie/dashboard-cloudflare`, public, MIT LICENSE.
   Base commit: `29d43ff04a6abb257b5046c85f2fcba6f0bb679d` (main).
 - Review branch: `codex/v5-review`, head
-  `1696d372e3ce6bf0fc9d875c31747d65d7b22cdb`. Draft PR #2 tracks it.
-  Main is unchanged; nothing is merged or deployed.
+  `7883921607c27f308af33c383fab74ce58371fa7` (V15 candidate). Draft
+  PR #2 tracks it. Main is unchanged; nothing is merged or deployed.
 - A stale candidate branch `bulk-phase-20261019` exists; its release
   claim was withdrawn on 2026-10-20. It is evidence, not a candidate.
 - The app ships empty of personal data. All test data is invented.
 - Zero LICENSE changes on the review branch: `git diff
-  29d43ff..1696d37 -- LICENSE` is empty (checked 2026-10-22).
+  29d43ff..7883921 -- LICENSE` is empty (checked 2026-10-22).
 
 ## V14B state (current)
 
@@ -51,6 +50,35 @@ records remain under docs/review/).
   investments round-trip, populated explorers, chart offline
   fallback, isolated keyboard/modal cases, and the asset-manifest
   packaging check.
+
+## V15 state (current)
+
+- Frozen candidate: `7883921607c27f308af33c383fab74ce58371fa7`
+  (assembled locally as `3ef0e08`, verified byte-identical). Repairs
+  the eight Codex deployment-prep audit blockers at `433842b`:
+  jobs producer/adoption contract (`docs/review/V15-CONTRACT.md`,
+  published first at `0900a75`), safe goals/habits rendering,
+  stale-modal baseline guard, exact staged-asset manifest checker,
+  full third-party notices, honest indicators panel. Record:
+  `docs/review/V15-EXECUTION-RECORD.md`.
+- Local gate on the frozen candidate (sandbox Chromium 156.0.8078.4,
+  Node v24.20.0): PASS — 33 required browser cases (34 total), 19
+  Node lane-test files, negative 17/17, package stage check PASS,
+  runId `355b1fba`. Evidence: `docs/review/evidence/v15/`.
+- Current js/store.js SHA-256
+  `3d96eee79e7e34405d78049117a0741e7b7b09a0e6b7f5bb260dc32ea839e35c`.
+  Current js/feeds.js SHA-256
+  `b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88`
+  (unchanged in V15).
+- The pages.yml replacement is prepared as a reviewable patch
+  (`docs/review/V15-PAGES-WORKFLOW.patch`); applying it through the
+  GitHub API returns 403 (workflows permission) — the file on the
+  branch is unchanged and no workaround was attempted.
+- Codex independent inspection of `7883921`: pending. Host
+  acceptance: NOT RUN. No release approval; the withdrawn shippable
+  claim stays withdrawn.
+
+## V14B state (superseded by V15 above)
 
 ## Backend status: UNACCEPTED
 
