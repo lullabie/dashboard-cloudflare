@@ -1,6 +1,7 @@
 # qa/v4 — browser QA specs
 
-Real-browser specs for the dashboard. Each case runs in Firefox through
+Real-browser specs for the dashboard. Each case runs in a Chromium-family
+browser (Chrome, Brave, or Chromium, selected with `QA_BROWSER`) through
 Playwright against one tree served from a local temporary origin.
 Data is invented only. A PASS here is browser evidence for the named
 tree only. It is not release acceptance and not host acceptance.
@@ -10,7 +11,7 @@ tree only. It is not release acceptance and not host acceptance.
 ```sh
 cd qa/v4
 npm ci
-npx playwright install firefox
+npx playwright install chromium
 ```
 
 `npm ci` installs from `package-lock.json`. The install is
@@ -19,15 +20,42 @@ package). Do not use `npm install` as the documented route; it can
 change the lockfile. `npm ci` creates `node_modules/` in this
 directory. Do not commit `node_modules/`.
 
-Specs resolve Playwright in this order:
+All four specs launch through one shared helper,
+`qa/v4/browser-launch.mjs`. The helper resolves Playwright in this order:
 
-1. `PLAYWRIGHT_MODULE` env (storage spec also reads `QA_PLAYWRIGHT_CORE`).
+1. `PLAYWRIGHT_MODULE` env.
 2. Bare `playwright` / `playwright-core` import. This resolves the pinned
    install above.
-3. Fallbacks only: a repo-local `node_modules/playwright-core`, the Python
-   Playwright driver package, the npx cache, a cached Firefox binary
-   under `~/.cache/ms-playwright`. A cache hit is never the sole
-   reproducible setup.
+3. `qa/v4/node_modules/playwright-core`, then
+   `qa/v4/node_modules/playwright`.
+4. The Python Playwright driver package under
+   `~/.local/lib/python*/site-packages/playwright/driver/package`.
+5. The npx cache under `~/.npm/_npx/*/node_modules/playwright-core`.
+
+A cache hit is never the sole reproducible setup.
+
+## Browser selection
+
+`QA_BROWSER` selects the browser: `chrome`, `brave`, or `chromium`
+(case-insensitive). The default is `chromium`. The helper launches through
+the Playwright chromium launcher only: kind `chrome` uses channel
+`chrome`, kind `brave` uses channel `brave`, and kind `chromium` uses the
+Playwright Chromium build from the setup step.
+
+Executable override: set `QA_BROWSER_EXECUTABLE_PATH` (alias
+`QA_BROWSER_EXECUTABLE`) to an installed executable. Examples:
+
+```sh
+QA_BROWSER=chrome QA_BROWSER_EXECUTABLE_PATH=/usr/bin/google-chrome node qa/v4/jobs-browser.spec.mjs
+QA_BROWSER=brave QA_BROWSER_EXECUTABLE_PATH=/usr/bin/brave node qa/v4/jobs-browser.spec.mjs
+```
+
+Contexts are isolated: each spec creates contexts with
+`browser.newContext()`. No normal user profile is used.
+
+There is no fallback. An unsupported `QA_BROWSER` value, a missing
+Playwright module, or an unlaunchable selection makes every owned case
+report NOT RUN and the spec exits nonzero.
 
 ## Run
 
@@ -75,7 +103,7 @@ is `qa/v4/result-schema.json`. The report is schema version 2:
   "testedCommit": "<7-40 hex chars>",
   "storeSha256": "<64 lower hex>",
   "feedsSha256": "<64 lower hex>",
-  "runtime": "<string, e.g. node v24.20.0>",
+  "runtime": "<string: node version plus the actual browser name and version, e.g. node v24.20.0; browser Chromium 141.0.7390.0 (QA_BROWSER=chromium)>",
   "runId": "<string, the QA_RUN_ID of the producing run>",
   "generatedAt": "<ISO 8601 timestamp>",
   "cases": [
@@ -99,7 +127,13 @@ How a run works:
    - `QA_RESULTS_FILE` — absolute path of the result file.
    - `QA_TREE_ROOT` and `DASH_TREE` — the tested tree.
    - `QA_TESTED_COMMIT` — the frozen commit under test.
-   - `QA_RUNTIME` — runtime string for the report header.
+   - `QA_RUNTIME` — base runtime string for the report header. Each spec
+     extends it with the actual browser name and version recorded through
+     the shared helper (for example `; browser Google Chrome 155.0.0.0
+     (QA_BROWSER=chrome)`). When launch fails, the runtime names the
+     requested selection as not launched.
+   - `QA_BROWSER`, `QA_BROWSER_EXECUTABLE_PATH` — optional browser
+     selection; the runner passes its environment through to the specs.
 3. Each spec collects its cases and calls the writer once at the end.
    The writer computes `storeSha256` and `feedsSha256` from the tree.
    A spec cannot state hashes.
@@ -123,7 +157,7 @@ Gate rules for the report:
   `NOT RUN`.
 - A `PASS` on a required id counts only with boundary `REAL-BROWSER`.
   A mock or static pass does not satisfy the gate.
-- The required set is 24 ids: the standing acceptance ids and the five
+- The required set is 25 ids: the standing acceptance ids and the five
   V5 regression ids listed in `qa/v4/result-schema.md`. Extra ids are
   allowed and ignored by the gate (warning only).
 
@@ -139,6 +173,7 @@ about Workers, D1 or any hosted behavior.
 | `storage-browser.spec.mjs` | TEST-STORE-001–005, V5-STORE-01 |
 | `feeds-browser.spec.mjs` | TEST-FEEDS-001–003, V5-FEEDS-01–03 |
 | `jobs-browser.spec.mjs` | V8-JOBS-OTHER |
+| `browser-launch.mjs` | Shared Chromium-family launch helper: selection (`QA_BROWSER`), executable override, Playwright resolution, actual browser name/version |
 | `acceptance.spec.mjs` | Harness skeleton: fixture shape and fault/response primitive checks; browser-required cases report NOT RUN. Not integrated acceptance |
 | `feed-responses.mjs` | Repo-local fixture builders (RSS, oversize, malformed) imported by the feeds spec |
 | `storage-faults.mjs` | Fault hooks for the acceptance skeleton |
