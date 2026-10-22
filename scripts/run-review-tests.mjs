@@ -66,6 +66,7 @@ console.log(`Run: ${runId}`);
 console.log(`Tested commit: ${testedCommit ?? 'UNKNOWN'}`);
 console.log(`js/store.js sha256: ${storeSha256 ?? 'MISSING'}`);
 console.log(`js/feeds.js sha256: ${feedsSha256 ?? 'MISSING'}`);
+console.log(`Browser selection: QA_BROWSER=${process.env.QA_BROWSER ?? 'chromium'}${(process.env.QA_BROWSER_EXECUTABLE_PATH ?? process.env.QA_BROWSER_EXECUTABLE) ? ' (executable override set)' : ''}`);
 
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 function walk(dir, pred, out = []) {
