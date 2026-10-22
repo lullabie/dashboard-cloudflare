@@ -64,8 +64,11 @@ function trapFocus(modalEl) {
                 }
             }
         } else if (e.key === 'Escape' || e.keyCode === 27) {
+            // This handler owns Escape for its modal. Stop propagation
+            // so the document handler does not close a second layer.
             closeDialog(modalEl.id);
             e.preventDefault();
+            e.stopPropagation();
         }
     });
 }
@@ -604,8 +607,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnCreateInvestment.addEventListener('click', () => openInvestmentModal());
     btnCancelInvestmentModal.addEventListener('click', closeInvestmentModal);
 
+    // saveInvestment reads fresh state inside its Web Lock. A second
+    // submit during the first save thus creates a second record. This
+    // flag blocks re-entry while one investment save is in flight.
+    let investmentSaveInFlight = false;
     investmentForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (investmentSaveInFlight) return;
         const investmentData = {
             id: investmentIdInput.value || null,
             ticker: investmentTickerInput.value.trim(),
@@ -614,7 +622,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             notes: investmentNotesInput.value.trim()
         };
         if (staleModalBlock('investment', investmentData.id, getInvestments(), 'investment')) return;
-        await runMutation(saveInvestment(investmentData), () => { closeInvestmentModal(); refreshUI(); });
+        investmentSaveInFlight = true;
+        try {
+            await runMutation(saveInvestment(investmentData), () => { closeInvestmentModal(); refreshUI(); });
+        } finally {
+            investmentSaveInFlight = false;
+        }
     });
 
     // --- Habit Event Listeners ---
@@ -624,7 +637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         const habitData = {
             id: habitIdInput.value || null,
-            name: habitNameInput.value
+            title: habitNameInput.value
         };
         if (staleModalBlock('habit', habitData.id, getHabits(), 'habit')) return;
         await runMutation(saveHabit(habitData), () => { closeHabitModal(); refreshUI(); });
@@ -827,7 +840,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (habit) {
             habitModalTitle.textContent = 'Edit Habit';
             habitIdInput.value = habit.id;
-            habitNameInput.value = habit.name;
+            habitNameInput.value = habit.title;
         } else {
             habitModalTitle.textContent = 'Create Habit';
             habitForm.reset();
@@ -845,12 +858,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         habitIdInput.value = '';
     }
 
-    // Escape closes any open modal
+    // Escape closes only the top open modal. This handler runs only
+    // when focus is outside every modal. The per-modal handler stops
+    // propagation after it closes its own layer.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            document.querySelectorAll('.modal:not(.hidden)').forEach(m => {
-                closeDialog(m.id);
-            });
+            const top = dialogStack[dialogStack.length - 1];
+            if (top) closeDialog(top.id);
         }
     });
 
@@ -1071,8 +1085,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Habits View
         // const allHabits = ...
-        const activeHabits = allHabits.filter(h => !h.archived);
-        const archivedHabits = allHabits.filter(h => h.archived);
+        const activeHabits = allHabits.filter(h => h.status !== 'archived');
+        const archivedHabits = allHabits.filter(h => h.status === 'archived');
         
         const activeHabitsContainer = document.getElementById('active-habits-container');
         activeHabitsContainer.replaceChildren();
