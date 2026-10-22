@@ -1,0 +1,19 @@
+CHECK positive-control-valid-report: PASS — complete valid report accepted
+CHECK stale-commit-rejected: PASS — stale commit: report testedCommit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb does not match tested commit 433d6305b6e8508bbb8994c59a1cb5f6ec4a93d6
+CHECK failed-v5-regression-rejected: PASS — failed case: V5-FEEDS-01 is FAIL — timeout cleared at headers
+CHECK omitted-case-rejected: PASS — omitted case: TEST-HABITS-001 has no result in this run
+CHECK not-run-case-rejected: PASS — browser case not run: TEST-FEEDS-002 is NOT RUN — no browser resolved
+CHECK stale-runid-rejected: PASS — stale report: runId check-run-1 does not match this run a-different-run; report was not produced by this run
+CHECK source-hash-mismatch-rejected: PASS — source hash mismatch: report storeSha256 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee does not match tree value cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+CHECK stale-timestamp-rejected: PASS — stale report: generatedAt 2026-10-20T14:35:59.438Z is 2880 min old; limit is 120 min
+CHECK mock-boundary-rejected: PASS — wrong boundary: V5-STORE-01 PASS carries boundary "MOCK"; release cases require REAL-BROWSER
+CHECK malformed-json-rejected: PASS — malformed report: result file does not parse as JSON (Expected property name or '}' in JSON at position 2 (line 1 column 3))
+CHECK missing-file-is-browser-not-run: PASS — browser-not-run: no result file was produced by this run
+CHECK planted-labels-rejected-e2e: PASS — exit 1; defect named:   - browser-not-run: no qa/v4/*.spec.mjs files found; no browser suite can run
+CHECK silent-spec-is-browser-not-run-e2e: PASS — exit 1; defect named:   - browser-not-run: no result file was produced by this run
+CHECK complete-run-passes-e2e: PASS — exit 0; [LOCAL GATE] PASS — 28 required browser cases PASS in this run on commit 433d6305b6e8508bbb8994c59a1cb5f6ec4a93d6.
+CHECK browser-selection-rejects-unsupported: PASS — QA_BROWSER=firefox and QA_BROWSER=opera both throw; no fallback selection is returned
+CHECK browser-selection-accepts-supported: PASS — chrome=chrome, brave=brave, default=chromium, override=/opt/browsers/chrome, alias=/opt/browsers/brave
+CHECK no-legacy-browser-references: PASS — helper and all four specs contain no legacy browser reference
+
+Negative checks: 17/17 behaved as required, 0 failed.
