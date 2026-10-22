@@ -138,12 +138,23 @@ async function runTests() {
     assert.strictEqual(manualEntries.length, 1);
     assert.strictEqual(manualEntries[0].url, '', 'Unsafe URL must be blanked out on save');
     
+    
     // Test render path regression (simulated inert URL)
-    let card = feedsModule.createNewsCard({ title: 'X', url: 'javascript:alert(1)', category: 'global', published: new Date().toISOString() }, true, () => {});
-    let link = card.querySelector('a');
-    // For our vanilla DOM mock, we didn't implement fully querySelector for createNewsCard...
-    // Actually we can just check if href is inert or removed.
-    // wait, we can mock document.createElement for this specific test
+    let badCard = feedsModule.createNewsCard({ title: 'X', url: 'javascript:alert(1)', category: 'global', published: new Date().toISOString() }, true, () => {});
+    let badLink = badCard.querySelector('a');
+    assert.ok(badLink === null, 'Unsafe URL must not produce an anchor element');
+    
+    let spanLink = null;
+    for (let c of badCard.children[0].children[0].children) {
+        if (c.tagName === 'span' && c.textContent === 'View article') spanLink = c;
+    }
+    assert.ok(spanLink !== null, 'Unsafe URL must produce a span element');
+    assert.ok(!spanLink.href, 'Span must not have an href');
+    
+    let goodCard = feedsModule.createNewsCard({ title: 'Y', url: 'https://example.com/article', category: 'global', published: new Date().toISOString() }, true, () => {});
+    let goodLink = goodCard.querySelector('a');
+    assert.ok(goodLink !== null, 'Valid URL must produce an anchor element');
+    assert.strictEqual(goodLink.href, 'https://example.com/article', 'Valid URL must be preserved');
 
     console.log("Contract tests PASSED - MOCK");
 }
