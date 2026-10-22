@@ -79,7 +79,7 @@ Case rules:
 | `boundary` | Provenance label. A `PASS` on a required id counts only with boundary `REAL-BROWSER`. A mock or static pass does not satisfy the gate. |
 | `detail` | Non-empty string. Names the observed result. For `FAIL` and `NOT RUN` it names the failure or the missing precondition. |
 
-## Required case set (27 ids)
+## Required case set (28 ids)
 
 Standing acceptance ids (registry: `docs/ACCEPTANCE.md`):
 
@@ -116,6 +116,19 @@ V11 regression ids (bundle CODEX-V11-20261022):
   with the exact quarantine, and that exact export must import
   successfully into a clean context. Includes the export scenario where
   the disk record is newer than the current cache.
+
+V13 regression ids (bundle CODEX-V13-20261022):
+
+- `V13-PLACES-01` (owner: qa/v4/places-browser.spec.mjs) — native
+  Chrome places repair regression: a stored record whose places carry
+  a missing id, a duplicate id, and an invalid short id is repaired at
+  adoption (valid ids minted, valid neighbours, count and order
+  preserved, the original objects preserved as provenance in
+  `envelopeExtras.quarantine`); an edit of the formerly id-less place
+  updates exactly one record instead of creating a duplicate; delete
+  removes only the intended record; the repaired ids and the
+  provenance stay stable across cross-tab adoption, reload, export,
+  and exact-export import into a clean context.
 
 Gate rule: every required id present, at `PASS`, boundary
 `REAL-BROWSER`, in a report whose commit, hashes, runId and timestamp
