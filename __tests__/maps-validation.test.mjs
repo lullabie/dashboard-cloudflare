@@ -149,5 +149,72 @@ await check('createPlaceElement shows raw stored values for an invalid place, to
     assert.strictEqual(findCoords(elValid)?.textContent, '43.6500, -79.3800');
 });
 
+await check('isValidCoordinate rejects incomplete numeric strings (V10 repro: parseFloat prefix parsing)', () => {
+    assert.strictEqual(isValidCoordinate('43junk', '-79garbage'), false, 'exact Codex repro must be false');
+    assert.strictEqual(isValidCoordinate('43junk', 0), false);
+    assert.strictEqual(isValidCoordinate(0, '-79garbage'), false);
+    assert.strictEqual(isValidCoordinate('43.65abc', -79.38), false);
+    assert.strictEqual(isValidCoordinate('4 3', 0), false, 'embedded space is not a number');
+    assert.strictEqual(isValidCoordinate('0x10', 0), false, 'hex prefix string is not a decimal coordinate');
+});
+
+await check('isValidCoordinate rejects blank, whitespace-only, and non-finite strings', () => {
+    assert.strictEqual(isValidCoordinate('', 0), false);
+    assert.strictEqual(isValidCoordinate(0, ''), false);
+    assert.strictEqual(isValidCoordinate('   ', 0), false);
+    assert.strictEqual(isValidCoordinate(0, ' \t '), false);
+    assert.strictEqual(isValidCoordinate('Infinity', 0), false);
+    assert.strictEqual(isValidCoordinate('-Infinity', 0), false);
+    assert.strictEqual(isValidCoordinate('NaN', 0), false);
+    assert.strictEqual(isValidCoordinate(0, 'NaN'), false);
+});
+
+await check('isValidCoordinate accepts legitimate signed/decimal numeric strings and bounds', () => {
+    assert.strictEqual(isValidCoordinate('43.65', '-79.3832'), true);
+    assert.strictEqual(isValidCoordinate('+43', '-79'), true);
+    assert.strictEqual(isValidCoordinate('.5', '-.5'), true);
+    assert.strictEqual(isValidCoordinate(' 43.65 ', ' -79.3832 '), true, 'surrounding whitespace is trimmed');
+    assert.strictEqual(isValidCoordinate('90', '180'), true);
+    assert.strictEqual(isValidCoordinate('-90', '-180'), true);
+    assert.strictEqual(isValidCoordinate('90.0001', 0), false);
+    assert.strictEqual(isValidCoordinate(0, '180.0001'), false);
+    assert.strictEqual(isValidCoordinate('-90.0001', 0), false);
+    assert.strictEqual(isValidCoordinate(0, '-180.0001'), false);
+});
+
+await check('savePlace rejects junk-string coordinates on create and update, dataset untouched', async () => {
+    __setPlaces([validPlace]);
+    const callsBefore = mockState.saveCalls;
+    await assert.rejects(
+        savePlace({ name: 'JunkNew', lat: '43junk', lng: '-79garbage' }),
+        (e) => e instanceof Error && e.message === EXPECTED_ERROR
+    );
+    await assert.rejects(
+        savePlace({ id: 'p_valid', lat: '43junk', lng: '-79garbage' }),
+        (e) => e instanceof Error && e.message === EXPECTED_ERROR
+    );
+    await assert.rejects(
+        savePlace({ name: 'BlankNew', lat: '  ', lng: 0 }),
+        (e) => e instanceof Error && e.message === EXPECTED_ERROR
+    );
+    assert.strictEqual(mockState.saveCalls, callsBefore, 'saveData must not be called');
+    assert.deepStrictEqual(__getPlaces(), [validPlace], 'stored places must be unchanged');
+});
+
+await check('savePlace accepts valid string coordinates on create and update', async () => {
+    __setPlaces([validPlace]);
+    const callsBefore = mockState.saveCalls;
+    await savePlace({ name: 'StrPlace', lat: '43.65', lng: '-79.3832' });
+    let places = __getPlaces();
+    assert.strictEqual(places.length, 2);
+    assert.strictEqual(places[1].lat, '43.65', 'caller input is stored unchanged');
+    assert.strictEqual(places[1].lng, '-79.3832');
+    await savePlace({ id: 'p_valid', lat: '+44.5', lng: '-80.25' });
+    places = __getPlaces();
+    assert.strictEqual(places[0].lat, '+44.5');
+    assert.strictEqual(places[0].lng, '-80.25');
+    assert.strictEqual(mockState.saveCalls, callsBefore + 2);
+});
+
 console.log(`\nmaps-validation: ${passed} passed, ${failed} failed [MOCK]`);
 if (failed > 0) process.exit(1);
