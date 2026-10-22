@@ -177,25 +177,45 @@ function normalizeImportData(data) {
 //    quarantined entries. Unknown extras keys are merged, never
 //    replaced. getData() never filters: the partition happens once,
 //    at adoption, and the record itself carries the recovery data.
-// 4. Place ids are repaired at the same adoption boundary (V13).
-//    The existing migratePlaces runs on the partitioned places: an
-//    entry whose id fails isValidId, or repeats an id already seen,
-//    gets a minted id, exactly as at import. A place without a valid
-//    id cannot be edited or deleted (consumers match by id), so an
+// 4. Place ids are repaired at the same adoption boundary (V13),
+//    under a transactional repair authority (V14). The existing
+//    migratePlaces runs on the partitioned places: an entry whose
+//    id fails isValidId, or repeats an id already seen, gets a
+//    minted id, exactly as at import. A place without a valid id
+//    cannot be edited or deleted (consumers match by id), so an
 //    unrepaired adoption turns an edit into a create. Each replaced
 //    id is recorded as provenance { path:'places', index, value }
 //    with the original object, merged like any quarantine entry.
 //    Because every adoption repairs before any snapshot exists, a
-//    getData() snapshot never carries a malformed place id; and a
-//    snapshot minted before a later adoption repair holds the
-//    pre-adoption generation/revision token, so saveData's CAS
-//    rejects it instead of letting it overwrite the repaired state.
-//    A repair an adoption performs is persisted exactly once: at
-//    initial load inside the init transaction; at BroadcastChannel
-//    or conflict adoption through a guarded write that lands only
-//    when the disk record is still the adopted record (same
-//    generation and revision, both kept), so repaired ids stay
-//    stable across reloads and no newer record is clobbered.
+//    getData() snapshot never carries a malformed place id.
+//    A repair changes persisted data, so it must advance the CAS
+//    identity: two tabs can adopt the same record simultaneously
+//    and mint DIFFERENT ids for the same place, and a repair write
+//    that keeps the adopted generation/revision leaves both
+//    repairs writable under one shared token — a snapshot from
+//    the losing tab then commits over the winner (Codex V14,
+//    reproduced 3/3 in installed Chrome). So a BroadcastChannel or
+//    conflict adoption that mints ids claims authority in ONE
+//    readwrite transaction (see claimAdoptionRepair): it writes
+//    the repaired record at revision+1 only when the disk record
+//    is still the exact adopted record, then adopts exactly what
+//    it wrote; if the disk record has advanced, it writes nothing
+//    and adopts the disk record instead. Readwrite transactions
+//    on the same store serialize, so exactly one claim wins.
+//    Until a claim settles, the adopting tab's snapshots carry
+//    the pre-claim (adopted record) token; once a winner lands,
+//    the disk revision has advanced, so every competing
+//    speculative snapshot CAS-fails in saveData and
+//    conflict-adopts the canonical winner. No tab ever holds a
+//    token that pairs a speculative mint with the post-repair
+//    revision. Initial load needs no claim: initStore reads and
+//    repairs inside the SAME readwrite transaction, so
+//    simultaneous inits serialize and a later init reads the
+//    first init's repaired record — no speculative state exists
+//    and the record keeps its revision. Scope: the CAS contract
+//    covers store-mediated writers; a raw writer that forges a
+//    duplicate generation/revision pair with a different body is
+//    outside it (pre-existing boundary).
 const TOP_LEVEL_COLLECTIONS = ['goals', 'places', 'jobs', 'investments', 'habits', 'indicators'];
 const COLLEGE_COLLECTIONS = ['timetable', 'assignments', 'exams', 'fees'];
 const NEWS_COLLECTIONS = ['sources', 'cache', 'manual'];
@@ -365,27 +385,40 @@ export function getData() {
     return snapshot;
 }
 
-// V13: persist a place-ID repair that an adoption just performed.
-// Initial-load adoption is already durable (initStore puts the
-// repaired record inside its own transaction, and this path then
-// finds nothing to repair). BroadcastChannel and conflict adoption
-// have no transaction of their own, so without this write the disk
-// record would keep the malformed ids and the next reload would
-// mint different ones. The write is guarded and exactly-once: it
-// re-reads the record inside a readwrite transaction and writes the
-// adopted partition only when the disk record is still the exact
-// record that was adopted (same generation and revision). A newer
-// writer's record is never clobbered; that writer's own adoption
-// governs its repair. Generation and revision are kept: the repair
-// restores the adopted record's own content, it is not a new user
-// revision, and every holder of that token already holds repaired
-// data. The write cannot loop: any later adoption of the repaired
-// record finds valid ids and performs no repair, so no second
-// write fires. Persistence is best-effort; the in-memory repair
-// stands even if this write fails.
-function persistAdoptionRepair(adoptedRecord, repairedData, repairedExtras) {
+// V14: claim repair authority for a place-ID repair that a
+// BroadcastChannel or conflict adoption just performed.
+// Initial-load adoption is already durable and race-free
+// (initStore reads and repairs inside its own transaction, and
+// this path then finds nothing to repair). Adoption outside
+// init has no transaction of its own, and simultaneous adopters
+// of the same record mint different ids, so the repair cannot
+// simply be written back under the adopted revision: both
+// repairs would stay writable under one shared CAS token, and
+// a snapshot from either tab could overwrite the other tab's
+// canonical repair. The claim makes the repair transactional:
+// in ONE readwrite transaction, re-read the record; if it is
+// still the exact record that was adopted (same generation and
+// revision), write the repaired record with the revision
+// ADVANCED BY 1 — the repair is a content change and advances
+// the CAS identity — and adopt exactly what was written as
+// this tab's canonical state. If the disk record has advanced
+// past the adopted record, write nothing and adopt the disk
+// record through the normal funnel (it is the winner's
+// canonical repair, or a newer authoritative state; if it
+// still needs repair, its adoption claims in turn). Readwrite
+// transactions serialize, so exactly one claim wins. Until the
+// claim settles this tab keeps the adopted record's revision,
+// so snapshots captured during the window carry the pre-claim
+// token and CAS-fail once any winner lands. The claim cannot
+// loop: the canonical record mints nothing on adoption, so no
+// second claim fires. Persistence is best-effort and
+// nonblocking; the in-memory repair stands even if it fails.
+function claimAdoptionRepair(adoptedRecord, repairedData, repairedExtras) {
+    const claimData = JSON.parse(JSON.stringify(repairedData));
+    const claimExtras = JSON.parse(JSON.stringify(repairedExtras));
     (async () => {
-        let wrote = false;
+        let wroteRecord = null;
+        let supersedingRecord = null;
         try {
             const db = await openDB();
             await new Promise((resolve) => {
@@ -394,20 +427,34 @@ function persistAdoptionRepair(adoptedRecord, repairedData, repairedExtras) {
                 const getReq = store.get(RECORD_ID);
                 getReq.onsuccess = () => {
                     const disk = getReq.result;
-                    if (!disk || disk.generation !== adoptedRecord.generation || disk.revision !== adoptedRecord.revision) {
-                        return; // Superseded: write nothing.
+                    if (!disk) return;
+                    if (disk.generation === adoptedRecord.generation && disk.revision === adoptedRecord.revision) {
+                        wroteRecord = {
+                            ...disk,
+                            revision: disk.revision + 1,
+                            savedAt: new Date().toISOString(),
+                            data: claimData,
+                            envelopeExtras: claimExtras
+                        };
+                        store.put(wroteRecord);
+                    } else {
+                        supersedingRecord = disk;
                     }
-                    store.put({ ...disk, data: repairedData, envelopeExtras: repairedExtras });
-                    wrote = true;
                 };
                 getReq.onerror = () => {};
                 tx.oncomplete = () => { db.close(); resolve(); };
                 tx.onabort = tx.onerror = () => { db.close(); resolve(); };
             });
         } catch (e) {
-            console.warn('Adoption repair persistence failed:', e);
+            console.warn('Adoption repair claim failed:', e);
         }
-        if (wrote) {
+        // Settle this tab onto the canonical state, but only if
+        // it still sits on the adopted record; a tab that has
+        // already advanced reconciles at its next sync instead.
+        const stillOnAdopted = currentGeneration === adoptedRecord.generation &&
+            currentRevision === adoptedRecord.revision;
+        if (wroteRecord) {
+            if (stillOnAdopted) syncFromRecord(wroteRecord);
             try {
                 if (typeof BroadcastChannel !== 'undefined') {
                     const bc = new BroadcastChannel('dashboard_store_sync');
@@ -415,8 +462,10 @@ function persistAdoptionRepair(adoptedRecord, repairedData, repairedExtras) {
                     bc.close();
                 }
             } catch (notifyErr) {
-                console.warn('Repair persisted, but cross-tab notification failed:', notifyErr);
+                console.warn('Repair claimed, but cross-tab notification failed:', notifyErr);
             }
+        } else if (supersedingRecord && stillOnAdopted) {
+            syncFromRecord(supersedingRecord);
         }
     })();
 }
@@ -434,10 +483,14 @@ function syncFromRecord(record) {
     const extras = { ...extrasIn };
     if (part.quarantine.length) extras.quarantine = part.quarantine;
     envelopeExtras = extras;
-    // V13: a place-ID repair must become durable exactly once, or a
-    // reload re-mints different ids. See persistAdoptionRepair.
+    // V14: a place-ID repair must become canonical exactly once,
+    // or a reload re-mints different ids and simultaneous
+    // adopters fork the record identity. See claimAdoptionRepair.
+    // Until the claim settles, this tab keeps the adopted
+    // record's generation/revision, so snapshots captured during
+    // the window carry the pre-claim token.
     if (part.placeIdRepairs > 0) {
-        persistAdoptionRepair(record, part.data, extras);
+        claimAdoptionRepair(record, part.data, extras);
     }
 }
 
