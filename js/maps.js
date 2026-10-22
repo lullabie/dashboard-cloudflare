@@ -9,6 +9,10 @@ export function getPlaces() {
 }
 
 export function savePlace(placeData) {
+    if (!isValidCoordinate(placeData.lat, placeData.lng)) {
+        return Promise.reject(new Error('Invalid coordinates: latitude must be a finite number from -90 to 90 and longitude from -180 to 180'));
+    }
+
     const data = getData();
     if (!data.places) {
         data.places = [];
@@ -39,7 +43,7 @@ export function deletePlace(placeId) {
     }
 }
 
-function isValidCoordinate(lat, lng) {
+export function isValidCoordinate(lat, lng) {
     const latFloat = parseFloat(lat);
     const lngFloat = parseFloat(lng);
     if (!Number.isFinite(latFloat) || !Number.isFinite(lngFloat)) return false;
@@ -54,9 +58,7 @@ function isValidCoordinate(lat, lng) {
  * Adds a marker if an active place is provided.
  */
 export function getMapEmbedUrl(places, activePlace = null) {
-    if (activePlace && !isValidCoordinate(activePlace.lat, activePlace.lng)) {
-        return null;
-    }
+    const effectiveActivePlace = (activePlace && isValidCoordinate(activePlace.lat, activePlace.lng)) ? activePlace : null;
 
     if (!places || places.length === 0) return null;
 
@@ -106,8 +108,8 @@ export function getMapEmbedUrl(places, activePlace = null) {
     params.append('bbox', bbox);
     params.append('layer', 'mapnik');
 
-    if (activePlace) {
-        params.append('marker', `${parseFloat(activePlace.lat)},${parseFloat(activePlace.lng)}`);
+    if (effectiveActivePlace) {
+        params.append('marker', `${parseFloat(effectiveActivePlace.lat)},${parseFloat(effectiveActivePlace.lng)}`);
     }
 
     return `${baseUrl}?${params.toString()}`;
@@ -142,7 +144,9 @@ export function createPlaceElement(place, onEdit, onDelete, onClick, isActive) {
     
     const coords = document.createElement('div');
     coords.className = 'place-coords';
-    coords.textContent = `${parseFloat(place.lat).toFixed(4)}, ${parseFloat(place.lng).toFixed(4)}`;
+    coords.textContent = isValidCoordinate(place.lat, place.lng)
+        ? `${parseFloat(place.lat).toFixed(4)}, ${parseFloat(place.lng).toFixed(4)}`
+        : `${place.lat}, ${place.lng}`;
     
     textContainer.appendChild(name);
     textContainer.appendChild(coords);
