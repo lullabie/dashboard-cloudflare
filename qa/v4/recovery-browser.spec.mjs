@@ -1,8 +1,12 @@
 // recovery-browser.spec.mjs — Lane D independent QA, dashboard V10.
 // Run: node qa/v4/recovery-browser.spec.mjs [--tree <path>]
 //        [--results-out <path>]
-// One real-browser regression case (V10-RECOVERY-01) for native IndexedDB
-// adoption of a malformed stored record. No store mocks. The spec serves a
+// Real-browser regression cases for native IndexedDB adoption of a
+// malformed stored record: V10-RECOVERY-01 (poisoned load, cross-tab
+// adoption, quarantine retention) and V11-RECOVERY-02 (export consistency:
+// an export taken after adoption, before any save or re-init, must carry
+// the partitioned data with its quarantine, and must import cleanly).
+// No store mocks. The spec serves a
 // static tree from a local temporary origin, opens a Chromium-family
 // browser (Chrome/Brave/Chromium via QA_BROWSER) with an isolated context,
 // seeds a RAW IndexedDB record whose data carries null collection entries,
@@ -46,7 +50,7 @@ const TREE_ROOT = path.resolve(
     path.resolve(here, '..', '..'),
 );
 
-const CASE_IDS = ['V10-RECOVERY-01'];
+const CASE_IDS = ['V10-RECOVERY-01', 'V11-RECOVERY-02'];
 
 const VALID_GOAL_ID = 'goal_qa_v10_valid';
 const VALID_GOAL_TITLE = 'Invented Valid Goal';
@@ -201,6 +205,55 @@ async function exportAndRead(page) {
   return JSON.parse(readFileSync(target, 'utf8'));
 }
 
+// Runs the real store exportData() in the page and returns the download
+// as raw text plus parsed JSON. The import step needs the exact text.
+// The capture pattern is the same as exportAndRead.
+async function exportCapture(page) {
+  await grabStore(page);
+  const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
+  await page.evaluate(async () => { await window.__store.exportData(); });
+  const download = await downloadPromise;
+  assert.ok(download, 'exportData produced no download');
+  const target = path.join(
+    os.tmpdir(),
+    `v11-recovery-export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`,
+  );
+  await download.saveAs(target);
+  const text = readFileSync(target, 'utf8');
+  return { text, parsed: JSON.parse(text) };
+}
+
+// Reads the RAW durable record from the native IndexedDB. Page-side use.
+const rawReadRecordInPage = async () => {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('dashboard_store', 1);
+    req.onsuccess = () => {
+      const db = req.result;
+      const tx = db.transaction('store_records', 'readonly');
+      const getReq = tx.objectStore('store_records').get(1);
+      getReq.onsuccess = () => { const rec = getReq.result ?? null; db.close(); resolve(rec); };
+      getReq.onerror = () => { db.close(); reject(getReq.error); };
+    };
+    req.onerror = () => reject(req.error);
+  });
+};
+
+// Writes one RAW durable record to the native IndexedDB. Page-side use.
+// The caller builds the full replacement record in Node from a raw read.
+const rawWriteRecordInPage = async (replacement) => {
+  await new Promise((resolve, reject) => {
+    const req = indexedDB.open('dashboard_store', 1);
+    req.onsuccess = () => {
+      const db = req.result;
+      const tx = db.transaction('store_records', 'readwrite');
+      tx.objectStore('store_records').put(replacement);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+    req.onerror = () => reject(req.error);
+  });
+};
+
 // Finds quarantine-shaped entries anywhere in the export envelope: objects
 // with a string path and an integer index (the recovery metadata contract
 // { path, index, value, reason }).
@@ -254,6 +307,59 @@ function checkExport(parsed, label) {
   );
 }
 
+// --- V11-RECOVERY-02 helpers ---------------------------------------------------
+
+// Asserts that no exported collection carries a malformed entry. An entry
+// is malformed when it is null, a primitive, or an array.
+function assertExportCollectionsClean(data, label) {
+  const groups = [];
+  for (const k of ['goals', 'places', 'jobs', 'investments', 'habits', 'indicators']) {
+    groups.push([k, data?.[k]]);
+  }
+  for (const k of ['timetable', 'assignments', 'exams', 'fees']) {
+    groups.push([`college.${k}`, data?.college?.[k]]);
+  }
+  for (const k of ['sources', 'cache', 'manual']) {
+    groups.push([`news.${k}`, data?.news?.[k]]);
+  }
+  for (const [name, arr] of groups) {
+    assert.ok(Array.isArray(arr), `${label}: exported data.${name} is not an array`);
+    for (let i = 0; i < arr.length; i++) {
+      assert.ok(
+        arr[i] && typeof arr[i] === 'object' && !Array.isArray(arr[i]),
+        `${label}: exported data.${name}[${i}] is malformed (${JSON.stringify(arr[i])})`,
+      );
+    }
+  }
+}
+
+// Asserts that the export quarantine is exactly the expected entry set.
+// Each expected entry has the shape { path, index, value }.
+function assertQuarantineExact(parsed, expected, label) {
+  const found = findQuarantineEntries(parsed);
+  assert.equal(
+    found.length, expected.length,
+    `${label}: expected exactly ${expected.length} quarantine entries, found ${JSON.stringify(found)}`,
+  );
+  for (const exp of expected) {
+    const entry = found.find((e) => e.path === exp.path && e.index === exp.index);
+    assert.ok(entry, `${label}: quarantine entry ${exp.path}[${exp.index}] is missing; found ${JSON.stringify(found)}`);
+    assert.deepEqual(
+      { path: entry.path, index: entry.index, value: entry.value }, exp,
+      `${label}: quarantine entry ${exp.path}[${exp.index}] differs`,
+    );
+  }
+}
+
+const P1_GOAL = { id: 'goal_qa_v11_p1', title: 'Invented Phase One Goal', status: 'active', history: [] };
+const P1_JOB_1 = { id: 'job_qa_v11_p1_one', title: 'Invented Phase One Job One', company: 'Invented Co One', status: 'applied', location: 'toronto' };
+const P1_JOB_2 = { id: 'job_qa_v11_p1_two', title: 'Invented Phase One Job Two', company: 'Invented Co Two', status: 'applied', location: 'toronto' };
+const P2_GOAL_D1 = { id: 'goal_qa_v11_p2_d1', title: 'Invented Phase Two Goal D1', status: 'active', history: [] };
+const P2_JOB_D1 = { id: 'job_qa_v11_p2_d1', title: 'Invented Phase Two Job D1', company: 'Invented Co D1', status: 'applied', location: 'toronto' };
+const P2_GOAL_D2 = { id: 'goal_qa_v11_p2_d2', title: 'Invented Phase Two Goal D2', status: 'active', history: [] };
+const P2_JOB_D2_1 = { id: 'job_qa_v11_p2_d2_one', title: 'Invented Phase Two Job D2 One', company: 'Invented Co D2', status: 'applied', location: 'toronto' };
+const P2_JOB_D2_2 = { id: 'job_qa_v11_p2_d2_two', title: 'Invented Phase Two Job D2 Two', company: 'Invented Co D2', status: 'applied', location: 'toronto' };
+
 // --- Driver --------------------------------------------------------------------
 
 const storePath = path.join(TREE_ROOT, 'js', 'store.js');
@@ -294,7 +400,7 @@ try {
 } catch (error) {
   console.log(`Browser launch blocker: ${error.message.split('\n')[0]}`);
   for (const id of CASE_IDS) record(id, 'REAL-BROWSER', 'NOT RUN', `Missing precondition: browser launch failed: ${error.message.split('\n')[0]}`);
-  console.log('Summary: PASS 0; NOT RUN 1; FAIL 0');
+  console.log(`Summary: PASS 0; NOT RUN ${CASE_IDS.length}; FAIL 0`);
   emitResults();
   process.exit(1);
 }
@@ -417,6 +523,222 @@ await group('V10-RECOVERY-01', async () => {
     return 'poisoned native-IDB record (goals[0]=null, jobs[1]=null) loaded with zero pageerrors; valid goal and job rendered; second page adopted the unrelated cross-tab save cleanly with valid data intact; both exports keep the malformed entries only as quarantine metadata (path/index/value) and the clean data plus the unrelated save intact, before and after reload';
   } finally {
     await context.close();
+  }
+});
+
+// V11-RECOVERY-02 — export consistency after a BroadcastChannel adoption.
+// Phase 1: the disk record is poisoned after a clean boot. Page A adopts
+// the record through the sync channel. An export taken before any save and
+// before any re-init must carry the partitioned data with the matching
+// quarantine. That exact export must import into a clean context.
+// Phase 2: the disk record is newer than the page cache and no sync
+// notification is sent. The export must carry the newer disk data,
+// partitioned, not the stale cache.
+// Export and import defects are collected, not thrown at first sight. The
+// case still attempts the import and phase 2 after an export defect. The
+// case then fails once with every defect named. Adoption, download and
+// setup defects throw at once: those are mechanics, not the product defect.
+await group('V11-RECOVERY-02', async () => {
+  const defects = [];
+  // Defect text goes on one line. The results writer keeps the first
+  // lines of a failure only, and a multi-line diff would hide later phases.
+  const collect = (error) => defects.push(String(error.message).replace(/\s+/g, ' ').trim());
+  const contexts = [];
+  try {
+    // --- Phase 1, step 1: clean boot. ---
+    const context1 = await browser.newContext({ acceptDownloads: true });
+    contexts.push(context1);
+    const errors1 = [];
+    const page1 = await context1.newPage();
+    page1.on('pageerror', (error) => errors1.push(error.message));
+    await page1.goto(`${origin}/index.html`, { waitUntil: 'load' });
+    await grabStore(page1);
+    await page1.evaluate(async () => { await window.__store.initStore(); });
+    assert.equal(errors1.length, 0, `phase 1 clean boot produced pageerror(s): ${errors1.join(' ; ')}`);
+
+    // --- Phase 1, step 2: seed valid data through the app. ---
+    const seeded = await page1.evaluate(async ({ goal, job1, job2 }) => {
+      const store = window.__store;
+      const snapshot = store.getData();
+      snapshot.goals = [goal];
+      snapshot.jobs = [job1, job2];
+      return store.saveData(snapshot);
+    }, { goal: P1_GOAL, job1: P1_JOB_1, job2: P1_JOB_2 });
+    assert.deepEqual(seeded, { committed: true, conflict: false }, 'phase 1 seed save did not commit');
+
+    // --- Phase 1, step 3: poison the disk record, then notify page A. ---
+    // A foreign writer puts a null entry between the two valid jobs and
+    // increments the revision. No other collection changes.
+    const diskBefore = await page1.evaluate(rawReadRecordInPage);
+    assert.ok(diskBefore, 'phase 1: no durable record exists after the seed save');
+    const poisoned = JSON.parse(JSON.stringify(diskBefore));
+    poisoned.data.jobs = [poisoned.data.jobs[0], null, poisoned.data.jobs[1]];
+    poisoned.revision = diskBefore.revision + 1;
+    poisoned.savedAt = new Date().toISOString();
+    await page1.evaluate(rawWriteRecordInPage, poisoned);
+    await page1.evaluate(async () => {
+      const bc = new BroadcastChannel('dashboard_store_sync');
+      bc.postMessage('sync');
+      bc.close();
+    });
+    await page1.waitForFunction(
+      (ids) => window.__store.getData().jobs.map((j) => j.id).join(',') === ids.join(','),
+      [P1_JOB_1.id, P1_JOB_2.id],
+      { timeout: 8000 },
+    );
+    const adopted1 = await page1.evaluate(() => {
+      const d = window.__store.getData();
+      return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id) };
+    });
+    assert.deepEqual(adopted1.jobs, [P1_JOB_1.id, P1_JOB_2.id], 'phase 1: adopted jobs differ from the valid neighbours in order');
+    assert.deepEqual(adopted1.goals, [P1_GOAL.id], 'phase 1: adopted goals differ');
+    assert.equal(errors1.length, 0, `phase 1 adoption produced pageerror(s): ${errors1.join(' ; ')}`);
+
+    // --- Phase 1, step 4: export before any save and before any re-init. ---
+    // The quarantine in the export envelope is the adopted quarantine. The
+    // adoption policy puts exactly one entry there: jobs index 1, null.
+    const export1 = await exportCapture(page1);
+    try {
+      assert.equal(export1.parsed.app, 'dashboard', 'phase 1 export: app field is not dashboard');
+      assert.equal(export1.parsed.schemaVersion, 1, 'phase 1 export: schemaVersion is not 1');
+      assert.equal(typeof export1.parsed.exportedAt, 'string', 'phase 1 export: exportedAt is missing');
+      assert.deepEqual(
+        (export1.parsed.data?.jobs ?? []).map((j) => (j && typeof j === 'object' ? j.id : j)),
+        [P1_JOB_1.id, P1_JOB_2.id],
+        'phase 1 export before save: exported data.jobs is not the partitioned neighbour pair',
+      );
+      assert.deepEqual(
+        (export1.parsed.data?.goals ?? []).map((g) => (g && typeof g === 'object' ? g.id : g)),
+        [P1_GOAL.id],
+        'phase 1 export before save: exported data.goals differs',
+      );
+      assertExportCollectionsClean(export1.parsed.data, 'phase 1 export before save');
+      assertQuarantineExact(export1.parsed, [{ path: 'jobs', index: 1, value: null }], 'phase 1 export before save');
+    } catch (error) {
+      collect(error);
+    }
+
+    // --- Phase 1, step 5: import the exact export into a clean context. ---
+    const context2 = await browser.newContext({ acceptDownloads: true });
+    contexts.push(context2);
+    const page2 = await context2.newPage();
+    const errors2 = [];
+    const dialogs2 = [];
+    page2.on('pageerror', (error) => errors2.push(error.message));
+    page2.on('dialog', async (dialog) => {
+      dialogs2.push(`${dialog.type()}: ${dialog.message()}`);
+      await dialog.accept().catch(() => {});
+    });
+    await page2.goto(`${origin}/index.html`, { waitUntil: 'load' });
+    await grabStore(page2);
+    await page2.evaluate(async () => { await window.__store.initStore(); });
+    try {
+      const importResult = await page2.evaluate(async (text) => new Promise((resolve) => {
+        const file = new File([text], 'dashboard-backup-v11.json', { type: 'application/json' });
+        window.__store.importData(file, (res) => resolve({
+          committed: !!res?.committed,
+          conflict: !!res?.conflict,
+          cancelled: !!res?.cancelled,
+          error: res?.error ? String(res.error.message ?? res.error) : null,
+        }));
+      }), export1.text);
+      assert.equal(
+        importResult.committed, true,
+        `phase 1 import: the exact export did not commit in a clean context: ${JSON.stringify(importResult)}; dialogs: ${dialogs2.join(' | ')}`,
+      );
+      const snap2 = await page2.evaluate(() => {
+        const d = window.__store.getData();
+        return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id) };
+      });
+      assert.deepEqual(snap2.jobs, [P1_JOB_1.id, P1_JOB_2.id], 'phase 1 import: imported jobs differ from the exported neighbours in order');
+      assert.deepEqual(snap2.goals, [P1_GOAL.id], 'phase 1 import: imported goals differ');
+      const disk2 = await page2.evaluate(rawReadRecordInPage);
+      assert.deepEqual(
+        disk2?.envelopeExtras?.quarantine, [{ path: 'jobs', index: 1, value: null }],
+        'phase 1 import: the durable record does not carry the exact quarantine metadata',
+      );
+      await page2.reload({ waitUntil: 'load' });
+      await grabStore(page2);
+      await page2.evaluate(async () => { await window.__store.initStore(); });
+      const snap2b = await page2.evaluate(() => {
+        const d = window.__store.getData();
+        return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id) };
+      });
+      assert.deepEqual(snap2b.jobs, [P1_JOB_1.id, P1_JOB_2.id], 'phase 1 import: jobs differ after reload');
+      assert.deepEqual(snap2b.goals, [P1_GOAL.id], 'phase 1 import: goals differ after reload');
+      const export2 = await exportCapture(page2);
+      assertExportCollectionsClean(export2.parsed.data, 'phase 1 second export');
+      assertQuarantineExact(export2.parsed, [{ path: 'jobs', index: 1, value: null }], 'phase 1 second export');
+      assert.equal(errors2.length, 0, `phase 1 import context produced pageerror(s): ${errors2.join(' ; ')}`);
+    } catch (error) {
+      collect(error);
+    }
+
+    // --- Phase 2, step 6: disk record newer than the page cache. ---
+    const context3 = await browser.newContext({ acceptDownloads: true });
+    contexts.push(context3);
+    const page3 = await context3.newPage();
+    const errors3 = [];
+    page3.on('pageerror', (error) => errors3.push(error.message));
+    await page3.goto(`${origin}/index.html`, { waitUntil: 'load' });
+    await grabStore(page3);
+    await page3.evaluate(async () => { await window.__store.initStore(); });
+    const seededD1 = await page3.evaluate(async ({ goal, job }) => {
+      const store = window.__store;
+      const snapshot = store.getData();
+      snapshot.goals = [goal];
+      snapshot.jobs = [job];
+      return store.saveData(snapshot);
+    }, { goal: P2_GOAL_D1, job: P2_JOB_D1 });
+    assert.deepEqual(seededD1, { committed: true, conflict: false }, 'phase 2 D1 save did not commit');
+    const diskD1 = await page3.evaluate(rawReadRecordInPage);
+    assert.ok(diskD1, 'phase 2: no durable record exists after the D1 save');
+    const recordD2 = JSON.parse(JSON.stringify(diskD1));
+    recordD2.data = {
+      goals: [null, P2_GOAL_D2],
+      places: [],
+      jobs: [P2_JOB_D2_1, P2_JOB_D2_2],
+      investments: [],
+      habits: [],
+      indicators: [],
+      metadata: {},
+      college: { timetable: [], assignments: [], exams: [], fees: [] },
+      news: { sources: [], cache: [], manual: [] },
+    };
+    recordD2.revision = diskD1.revision + 1;
+    recordD2.savedAt = new Date().toISOString();
+    recordD2.envelopeExtras = {};
+    await page3.evaluate(rawWriteRecordInPage, recordD2);
+    // No BroadcastChannel notification is sent. The page cache still
+    // holds D1. This assert proves the setup before the export runs.
+    const cachedJobs = await page3.evaluate(() => window.__store.getData().jobs.map((j) => j.id));
+    assert.deepEqual(cachedJobs, [P2_JOB_D1.id], 'phase 2 setup: the page cache does not hold D1 before the export');
+
+    // --- Phase 2, step 7: export with a stale cache. ---
+    // The export must carry D2 partitioned, with the D2 quarantine.
+    try {
+      const exportP2 = await exportCapture(page3);
+      assert.deepEqual(
+        (exportP2.parsed.data?.jobs ?? []).map((j) => (j && typeof j === 'object' ? j.id : j)),
+        [P2_JOB_D2_1.id, P2_JOB_D2_2.id],
+        'phase 2 export: exported jobs are not the newer disk dataset D2',
+      );
+      assert.deepEqual(
+        (exportP2.parsed.data?.goals ?? []).map((g) => (g && typeof g === 'object' ? g.id : g)),
+        [P2_GOAL_D2.id],
+        'phase 2 export: exported goals are not the partitioned D2 goals',
+      );
+      assertExportCollectionsClean(exportP2.parsed.data, 'phase 2 export');
+      assertQuarantineExact(exportP2.parsed, [{ path: 'goals', index: 0, value: null }], 'phase 2 export');
+      assert.equal(errors3.length, 0, `phase 2 produced pageerror(s): ${errors3.join(' ; ')}`);
+    } catch (error) {
+      collect(error);
+    }
+
+    assert.equal(defects.length, 0, defects.join(' || '));
+    return 'export before any save or re-init carried the partitioned neighbours in order with exactly one quarantine entry (jobs[1]=null) and imported with committed:true into a clean context, where the data and the quarantine survived reload and a second export; with the disk record newer than the page cache and no sync notification, the export carried the newer disk dataset D2 partitioned with its quarantine (goals[0]=null), not the cached D1';
+  } finally {
+    for (const context of contexts) await context.close();
   }
 });
 
