@@ -383,6 +383,156 @@ async function runTests() {
     check('V11 no-record fallback exports the in-memory quarantine',
         !!env11 && Array.isArray(quarantineOf(env11)) && quarantineOf(env11).length === 2, env11 && env11.quarantine);
 
+    // --- 12. V12: jobs entries that are objects but fail the strict
+    // import invariant (truthy id AND truthy title) are partitioned at
+    // adoption, exactly like malformed entries. The jobs rule is the
+    // only per-entry invariant beyond object shape in
+    // validateImportData; no other collection gains a new constraint.
+    const jobV12A = { id: 'job-v12-a', title: 'Alpha Job' };
+    const jobV12B = { id: 'job-v12-b', title: 'Beta Job' };
+    const orphanNoTitle = { id: 'orphan' };
+    const orphanNoId = { title: 'No Id Job' };
+    const orphanEmptyTitle = { id: 'job-v12-x', title: '' };
+    const orphanEmptyId = { id: '', title: 'Empty Id Job' };
+    const priorQ12 = { path: 'places', index: 0, value: null };
+    dbState = { 1: record(baseData({
+        jobs: [jobV12A, orphanNoTitle, orphanNoId, orphanEmptyTitle, orphanEmptyId, jobV12B]
+    }), { quarantine: [priorQ12], v12Key: 'keep-v12' }) };
+    const init12 = await store.initStore();
+    check('V12 initial load of shape-invalid jobs stays ready', init12.status === 'ready', init12);
+    const snap12 = store.getData();
+    check('V12 initial load keeps only import-valid jobs, order preserved',
+        snap12.jobs.length === 2 && snap12.jobs[0].id === 'job-v12-a' && snap12.jobs[1].id === 'job-v12-b', snap12.jobs);
+    const diskQ12 = quarantineOf(dbState[1].envelopeExtras);
+    check('V12 rejected jobs are quarantined verbatim at their indices',
+        Array.isArray(diskQ12) &&
+        qEntries(diskQ12, 'jobs').some((e) => e.index === 1 && JSON.stringify(e.value) === JSON.stringify(orphanNoTitle)) &&
+        qEntries(diskQ12, 'jobs').some((e) => e.index === 2 && JSON.stringify(e.value) === JSON.stringify(orphanNoId)) &&
+        qEntries(diskQ12, 'jobs').some((e) => e.index === 3 && JSON.stringify(e.value) === JSON.stringify(orphanEmptyTitle)) &&
+        qEntries(diskQ12, 'jobs').some((e) => e.index === 4 && JSON.stringify(e.value) === JSON.stringify(orphanEmptyId)),
+        diskQ12);
+    check('V12 pre-existing quarantine and unknown extras survive initial adoption',
+        Array.isArray(diskQ12) && qEntries(diskQ12, 'places').some((e) => e.index === 0 && e.value === null) &&
+        dbState[1].envelopeExtras.v12Key === 'keep-v12',
+        dbState[1].envelopeExtras);
+
+    // --- 13. V12: BroadcastChannel adoption partitions shape-invalid
+    // jobs; export BEFORE any save carries only valid jobs, and that
+    // exact export passes the module's own strict import.
+    const jobV12C = { id: 'job-v12-c', title: 'Gamma Job' };
+    const jobV12D = { id: 'job-v12-d', title: 'Delta Job' };
+    const orphanBc = { title: 'BC Missing Id' };
+    dbState[1] = record(baseData({ jobs: [jobV12C, orphanBc, jobV12D] }),
+        { quarantine: [priorQ12], v12BcKey: 'keep-bc' }, dbState[1].revision + 1);
+    const bc13 = liveBc();
+    check('V12 cross-tab channel handler registered', !!bc13, bcInstances.length);
+    if (bc13) { bc13.onmessage({ data: 'sync' }); await sleep(60); }
+    const snap13 = store.getData();
+    check('V12 BC adoption partitions shape-invalid jobs, neighbours keep order',
+        snap13.jobs.length === 2 && snap13.jobs[0].id === 'job-v12-c' && snap13.jobs[1].id === 'job-v12-d', snap13.jobs);
+    const diskBefore13 = JSON.stringify(dbState[1]);
+    lastDownloadText = null;
+    await store.exportData();
+    check('V12 export before save performs no disk write', JSON.stringify(dbState[1]) === diskBefore13, dbState[1]);
+    let env13 = null;
+    try { env13 = JSON.parse(lastDownloadText); } catch (e) {}
+    const q13 = env13 && quarantineOf(env13);
+    check('V12 export before save contains only import-valid jobs',
+        !!env13 && env13.data.jobs.length === 2 && env13.data.jobs[0].id === 'job-v12-c' && env13.data.jobs[1].id === 'job-v12-d',
+        env13 && env13.data);
+    check('V12 export quarantine holds the rejected original plus prior entries and unknown extras',
+        Array.isArray(q13) &&
+        qEntries(q13, 'jobs').some((e) => e.index === 1 && JSON.stringify(e.value) === JSON.stringify(orphanBc)) &&
+        qEntries(q13, 'places').some((e) => e.index === 0 && e.value === null) &&
+        env13.v12BcKey === 'keep-bc',
+        q13);
+    let importRes13 = null;
+    store.importData(lastDownloadText, (res) => { importRes13 = res; });
+    await sleep(120);
+    check('V12 exact export passes strict import (committed)',
+        !!importRes13 && importRes13.committed === true, importRes13);
+    const snap13b = store.getData();
+    check('V12 clean reimport preserves valid jobs and order',
+        snap13b.jobs.length === 2 && snap13b.jobs[0].id === 'job-v12-c' && snap13b.jobs[1].id === 'job-v12-d', snap13b.jobs);
+    const diskQ13 = quarantineOf(dbState[1].envelopeExtras);
+    check('V12 reimport keeps quarantine and unknown extras on disk',
+        Array.isArray(diskQ13) &&
+        qEntries(diskQ13, 'jobs').some((e) => e.index === 1 && JSON.stringify(e.value) === JSON.stringify(orphanBc)) &&
+        qEntries(diskQ13, 'places').some((e) => e.index === 0 && e.value === null) &&
+        dbState[1].envelopeExtras.v12BcKey === 'keep-bc',
+        dbState[1].envelopeExtras);
+    const snap13c = store.getData();
+    snap13c.habits.push({ name: 'V12 unrelated habit' });
+    const save13 = await store.saveData(snap13c);
+    await store.initStore(); // reload
+    lastDownloadText = null;
+    await store.exportData();
+    let env13b = null;
+    try { env13b = JSON.parse(lastDownloadText); } catch (e) {}
+    const q13b = env13b && quarantineOf(env13b);
+    check('V12 quarantine survives unrelated save, reload and second export',
+        save13.committed === true && Array.isArray(q13b) &&
+        qEntries(q13b, 'jobs').some((e) => e.index === 1 && JSON.stringify(e.value) === JSON.stringify(orphanBc)) &&
+        qEntries(q13b, 'places').some((e) => e.index === 0 && e.value === null) &&
+        !!env13b && env13b.data.jobs.length === 2,
+        { save13, q13b });
+
+    // --- 14. V12: conflict adoption partitions shape-invalid jobs too.
+    const jobV12E = { id: 'job-v12-e', title: 'Epsilon Job' };
+    const orphanConflict = { id: 'orphan-conflict' };
+    const snap14 = store.getData();
+    dbState[1] = record(baseData({ jobs: [orphanConflict, jobV12E] }), {}, dbState[1].revision + 5);
+    let conflictErr14 = null;
+    try { await store.saveData(snap14); } catch (e) { conflictErr14 = e; }
+    check('V12 CAS mismatch still rejects with Conflict', !!conflictErr14 && conflictErr14.message.includes('Conflict'), conflictErr14);
+    const snap14b = store.getData();
+    check('V12 conflict adoption exposes only the import-valid job',
+        snap14b.jobs.length === 1 && snap14b.jobs[0].id === 'job-v12-e', snap14b.jobs);
+    const snap14c = store.getData();
+    snap14c.goals.push({ title: 'V12 after conflict' });
+    const save14 = await store.saveData(snap14c);
+    const diskQ14 = quarantineOf(dbState[1].envelopeExtras);
+    check('V12 conflict-adopted quarantine survives the next save verbatim',
+        save14.committed === true && Array.isArray(diskQ14) &&
+        qEntries(diskQ14, 'jobs').some((e) => e.index === 0 && JSON.stringify(e.value) === JSON.stringify(orphanConflict)),
+        { save14, extras: dbState[1].envelopeExtras });
+
+    // --- 15. V12: latest-disk export selection (V11) still applies the
+    // jobs rule: a newer disk record that the cache has not adopted
+    // exports partitioned, and the exact export reimports cleanly.
+    const jobV12F = { id: 'job-v12-f', title: 'Zeta Job' };
+    const orphanLatest = { id: 'orphan-latest' };
+    const priorQ15 = { path: 'habits', index: 2, value: 'legacy-junk' };
+    dbState[1] = record(baseData({ goals: [{ title: 'V12 newer goal' }], jobs: [jobV12F, orphanLatest] }),
+        { quarantine: [priorQ15], v12LatestKey: 'latest-value' }, dbState[1].revision + 5, dbState[1].generation);
+    const diskBefore15 = JSON.stringify(dbState[1]);
+    lastDownloadText = null;
+    await store.exportData();
+    check('V12 latest-disk export performs no disk write', JSON.stringify(dbState[1]) === diskBefore15, dbState[1]);
+    let env15 = null;
+    try { env15 = JSON.parse(lastDownloadText); } catch (e) {}
+    const q15 = env15 && quarantineOf(env15);
+    check('V12 export selects newer disk data and partitions its shape-invalid job',
+        !!env15 && env15.data.goals.length === 1 && env15.data.goals[0].title === 'V12 newer goal' &&
+        env15.data.jobs.length === 1 && env15.data.jobs[0].id === 'job-v12-f',
+        env15 && env15.data);
+    check('V12 latest-disk export quarantine merges prior entries with the rejected original; unknown extras survive',
+        Array.isArray(q15) &&
+        qEntries(q15, 'jobs').some((e) => e.index === 1 && JSON.stringify(e.value) === JSON.stringify(orphanLatest)) &&
+        qEntries(q15, 'habits').some((e) => e.index === 2 && e.value === 'legacy-junk') &&
+        env15.v12LatestKey === 'latest-value',
+        q15);
+    await store.initStore(); // adopt the newer record before reimport
+    let importRes15 = null;
+    store.importData(lastDownloadText, (res) => { importRes15 = res; });
+    await sleep(120);
+    check('V12 latest-disk exact export passes strict import (committed)',
+        !!importRes15 && importRes15.committed === true, importRes15);
+    const snap15 = store.getData();
+    check('V12 latest-disk reimport preserves the valid job and newer goal',
+        snap15.jobs.length === 1 && snap15.jobs[0].id === 'job-v12-f' && snap15.goals.length === 1 && snap15.goals[0].title === 'V12 newer goal',
+        { jobs: snap15.jobs, goals: snap15.goals });
+
     console.log(`\nTests completed: ${passed} passed, ${failed} failed.`);
     if (failed > 0) process.exit(1);
 }
