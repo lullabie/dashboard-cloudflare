@@ -2,7 +2,8 @@
 // Run: node qa/v4/jobs-browser.spec.mjs [--tree <path>] [--results-out <path>]
 //
 // One real-browser case: V8-JOBS-OTHER. The case seeds invented jobs through
-// the legacy localStorage path, opens the Jobs view in Firefox through
+// the legacy localStorage path, opens the Jobs view in a Chromium-family
+// browser (Chrome/Brave/Chromium via QA_BROWSER) through
 // Playwright, clicks the actual jobs chart Other bar on the canvas, and
 // verifies the status filter, the visible list, location narrowing, and the
 // All reset. Data is invented only.
@@ -21,6 +22,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { writeBrowserResults } from '../../scripts/write-browser-results.mjs';
+import { launchSelectedBrowser } from './browser-launch.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -50,6 +52,15 @@ console.log(
 console.log('');
 
 const CASE_IDS = ['V8-JOBS-OTHER'];
+let browserInfo = null;
+const attemptedKind = String(process.env.QA_BROWSER ?? 'chromium').trim().toLowerCase() || 'chromium';
+function currentRuntime() {
+  const base = process.env.QA_RUNTIME ?? `node ${process.version}`;
+  return browserInfo
+    ? `${base}; browser ${browserInfo.actualName} ${browserInfo.version} (QA_BROWSER=${browserInfo.selection.kind})`
+    : `${base}; browser ${attemptedKind} not launched`;
+}
+
 const results = [];
 
 function record(id, boundary, status, detail) {
@@ -70,7 +81,7 @@ function emitResults() {
       outFile: path.resolve(out),
       tree: TREE,
       testedCommit: process.env.QA_TESTED_COMMIT ?? 'working-tree',
-      runtime: process.env.QA_RUNTIME ?? `node ${process.version}`,
+      runtime: currentRuntime(),
       runId: process.env.QA_RUN_ID,
       cases: results,
     });
@@ -99,48 +110,6 @@ async function runCase(id, fn) {
     record(id, 'REAL-BROWSER', 'PASS', detail);
   } catch (error) {
     record(id, 'REAL-BROWSER', 'FAIL', (error?.stack ?? String(error)).split('\n').slice(0, 3).join(' | '));
-  }
-}
-
-// --- Playwright loading. Documented route first: PLAYWRIGHT_MODULE, then
-// the pinned install declared in qa/v4/package.json (bare specifiers resolve
-// from qa/v4/node_modules). Cache paths are fallbacks only. ---
-
-async function loadPlaywright() {
-  const candidates = [];
-  if (process.env.PLAYWRIGHT_MODULE) candidates.push(process.env.PLAYWRIGHT_MODULE);
-  candidates.push('playwright', 'playwright-core');
-  candidates.push(path.join(here, 'node_modules', 'playwright-core', 'index.mjs'));
-  let lastError = null;
-  for (const candidate of candidates) {
-    try {
-      const mod = await import(path.isAbsolute(candidate) ? pathToFileURL(candidate).href : candidate);
-      if (mod.firefox) return mod;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw new Error(`no Playwright module resolved (last error: ${lastError?.message ?? 'none'}). Documented setup: run "npm ci" in qa/v4 (pinned playwright 1.64.1), then "npx playwright install firefox". Or set PLAYWRIGHT_MODULE to a module path.`);
-}
-
-function cachedFirefoxPath() {
-  const cacheDir = path.join(homedir(), '.cache', 'ms-playwright');
-  if (!existsSync(cacheDir)) return null;
-  const builds = readdirSync(cacheDir).filter((name) => name.startsWith('firefox-')).sort().reverse();
-  for (const build of builds) {
-    const exe = path.join(cacheDir, build, 'firefox', 'firefox');
-    if (existsSync(exe)) return exe;
-  }
-  return null;
-}
-
-async function launchFirefox(playwright) {
-  try {
-    return await playwright.firefox.launch({ headless: true });
-  } catch (firstError) {
-    const exe = cachedFirefoxPath();
-    if (!exe) throw firstError;
-    return await playwright.firefox.launch({ headless: true, executablePath: exe });
   }
 }
 
@@ -297,19 +266,12 @@ async function caseJobsOther(browser, origin) {
 
 // --- Runner ---
 
-let playwright;
-try {
-  playwright = await loadPlaywright();
-} catch (error) {
-  notRunAll(error.message);
-  process.exit(1);
-}
-
 let browser;
 try {
-  browser = await launchFirefox(playwright);
+  browserInfo = await launchSelectedBrowser();
+  browser = browserInfo.browser;
 } catch (error) {
-  notRunAll(`Firefox launch failed: ${error.message.split('\n')[0]}. Documented route: the pinned install in qa/v4/README.md. A cached Firefox build under ~/.cache/ms-playwright is a fallback only.`);
+  notRunAll(`Browser launch failed: ${error.message.split('\n')[0]}. Documented route: the pinned install in qa/v4/README.md.`);
   process.exit(1);
 }
 
