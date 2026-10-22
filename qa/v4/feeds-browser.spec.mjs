@@ -669,7 +669,10 @@ async function caseV5Feeds03(browser, origin) {
 
     // Part 3: a legacy record that already holds a javascript: URL must
     // render inert. Seed it through the tracked store snapshot, then render.
-    const href = await tabEval(page, async () => {
+    // Inert means: no anchor carries an unsafe href. Rendering no anchor at
+    // all (a non-link text element) is the strongest inert form and passes;
+    // a live javascript:/data: href on any anchor fails.
+    const renderInfo = await tabEval(page, async () => {
       const snapshot = window.__store.getData();
       snapshot.news.manual.push({
         id: 'manual-legacy', title: 'Invented legacy entry', url: 'javascript:alert(2)',
@@ -682,12 +685,15 @@ async function caseV5Feeds03(browser, origin) {
         () => {},
       );
       document.body.appendChild(card);
-      const anchor = card.querySelector('a');
-      return anchor ? (anchor.getAttribute('href') ?? '') : null;
+      const hrefs = Array.from(card.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? '');
+      const viewText = Array.from(card.querySelectorAll('a, span')).some((el) => el.textContent === 'View article');
+      return { hrefs, viewText };
     });
-    assert.ok(href !== null, 'rendered card has no anchor to inspect');
-    assert.ok(!/^javascript:/i.test(href), `unsafe legacy link rendered as a live href: ${href}`);
-    return `save path rejected or dropped the javascript: URL (save ${saveOutcome}); blank and https records preserved; legacy link rendered inert (href: ${JSON.stringify(href)})`;
+    assert.ok(renderInfo.viewText, 'rendered card lost its View article element');
+    for (const href of renderInfo.hrefs) {
+      assert.ok(!/^(javascript|data|vbscript):/i.test(href), `unsafe legacy link rendered as a live href: ${href}`);
+    }
+    return `save path rejected or dropped the javascript: URL (save ${saveOutcome}); blank and https records preserved; legacy link rendered inert (anchor hrefs: ${JSON.stringify(renderInfo.hrefs)})`;
   } finally {
     await context.close();
   }
