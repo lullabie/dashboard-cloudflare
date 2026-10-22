@@ -18,17 +18,63 @@
 // object verbatim. Repaired ids are stable across reload, export and
 // import — a restore never re-mints them.
 //
-// V14 extension (phases 6-8, same case): Codex V14 reproduced a repair
+// V14 extension (phases 6-9, same case): Codex V14 reproduced a repair
 // race in installed Chrome — two tabs adopt the same poisoned record
 // simultaneously, mint different ids under one shared generation/
 // revision token, and the losing tab's tracked snapshot then saves with
-// committed success over the durable winner. Phases 6-8 race two pages
+// committed success over the durable winner. Phases 6-9 race two pages
 // in one context against a fresh poisoned record, capture each page's
 // minted id and tracked snapshot inside the adoption window, and assert
 // one canonical winner: the loser's stale snapshot is rejected as a
 // conflict (verified against the disk, never the return value alone),
 // and the loser's edit still lands through a fresh snapshot with the
 // canonical id intact.
+//
+// V14 QA correction (this revision): Codex's independent installed-
+// Chrome gate failed the first version of phase 7 — but the failure
+// was in this spec, not in the store. The old barrier polled getData()
+// every 5 ms and could not guarantee a pre-claim capture: in Codex's
+// run both captures were taken AFTER the repair claim had settled
+// (both held the same canonical id), so the selected "loser" snapshot
+// was actually fresh and its save committed — correct store behavior.
+// The corrected spec makes the capture deterministic with a native
+// scheduling barrier and gates the stale assertions on a proven
+// precondition:
+//   - Each race page pre-opens a test-owned IndexedDB connection and
+//     runs a MessageChannel turn chain. A held readwrite transaction
+//     cannot be created before the sync post: IDB serializes
+//     overlapping transactions in creation order, so it would also
+//     block the pages' adoption reads (verified by probe in this
+//     Chromium: a held readwrite transaction blocks later readonly
+//     and readwrite transactions on the same store, across
+//     connections, until it commits). Instead, the first chain turn
+//     that observes the race place in getData() creates the hold
+//     synchronously in that same turn. That turn was enqueued before
+//     the store's claim transaction can exist — the claim is created
+//     only in the IDB open-success task of the claim's openDB() call,
+//     which the adoption itself starts — so the hold queues ahead of
+//     every claim transaction while the adoption reads (created
+//     earlier) have already run. No claim can settle while a hold is
+//     active, so a capture taken under the barrier is pre-settle by
+//     construction.
+//   - Staleness is nevertheless PROVEN, not assumed, before phase 7
+//     asserts rejection, under either of two gates: (G1) the
+//     capture's minted id differs from the durable winner's id —
+//     the page must have adopted the poisoned record (the only other
+//     record carrying a race place is the claimed one, whose id is
+//     the winner's), so its snapshot token carries the poisoned
+//     revision, one behind the winner's claimed revision; or (G2)
+//     the capture was taken under the barrier and its capture-time
+//     disk proof — a readonly read created in the capture turn,
+//     ahead of the hold and of every later claim — completed while
+//     the hold was active and still shows the poisoned record
+//     durable, which also proves the claim winner's own pre-settle
+//     snapshot stale. If neither capture is provably stale, the
+//     stale-rejection coverage reports NOT RUN (the case is
+//     downgraded, never passed on that coverage, never failed as a
+//     product defect); phase 8 separately asserts that a FRESH
+//     post-settle snapshot commits — the behavior Codex's run
+//     actually exercised.
 //
 // No store mocks. The spec serves a static tree from a local temporary
 // origin, opens a Chromium-family browser (Chrome/Brave/Chromium via
@@ -94,6 +140,9 @@ const PROVENANCE_PHASE_1 = [
 // it at effectively the same time and repair it independently.
 const RACE_PLACE = { name: 'Race Place', title: 'Race Place', lat: 43, lng: -79 };
 const RACE_EDITED_TITLE = 'Race Place Edited By Loser';
+// Phase 8's fresh-snapshot edit, applied from the non-loser page after
+// the race settles; phase 9 then overwrites it with RACE_EDITED_TITLE.
+const RACE_FRESH_EDITED_TITLE = 'Race Place Edited From Fresh Snapshot';
 
 let browserInfo = null;
 const attemptedKind = String(process.env.QA_BROWSER ?? 'chromium').trim().toLowerCase() || 'chromium';
@@ -235,28 +284,123 @@ const postSyncInPage = async () => {
   bc.close();
 };
 
-// V14 race barrier. Installs a promise on window that resolves the
-// moment a place titled 'Race Place' first appears in getData(),
-// stashing that page's minted id and a tracked getData() snapshot on
-// window in the same tick — inside the adoption window, before repair
-// persistence can settle. The snapshot object must stay in the page:
-// saveData() tokens are keyed by object identity in a WeakMap, so a
-// snapshot round-tripped through the driver is untracked. Page-side.
-const installRaceCaptureInPage = async () => {
-  window.__raceCapture = (async () => {
-    const deadline = Date.now() + 8000;
-    while (Date.now() < deadline) {
-      const places = window.__store?.getData().places ?? [];
-      const race = places.find((p) => p.title === 'Race Place');
+// V14 race barrier (QA correction). Deterministic native capture of a
+// pre-claim tracked snapshot. Design (see the header comment for the
+// full argument):
+//   - A test-owned IndexedDB connection is pre-opened on the page.
+//   - A MessageChannel turn chain watches getData(). The first turn
+//     that observes the race place stashes that page's minted id and a
+//     tracked getData() snapshot on window AND, synchronously in the
+//     same turn, creates a readwrite transaction on the app's object
+//     store and holds it open with a get-request chain. That turn was
+//     enqueued before the store's claim transaction can exist (the
+//     claim is created in the IDB open-success task of the claim's
+//     own openDB() call, started by the adoption the turn observed),
+//     so the hold queues ahead of every claim transaction, while this
+//     page's adoption read — created earlier — has already run. No
+//     claim can settle while the hold is active.
+//   - The hold must NOT be created before the sync post: a readwrite
+//     transaction created earlier would also block the adoption reads
+//     (IDB serializes overlapping transactions in creation order;
+//     probe-verified in this Chromium for readonly and readwrite
+//     transactions alike, across connections).
+// The snapshot object must stay in the page: saveData() tokens are
+// keyed by object identity in a WeakMap, so a snapshot round-tripped
+// through the driver is untracked. Page-side use.
+const installRaceBarrierInPage = async () => {
+  const db = await new Promise((resolve, reject) => {
+    const req = indexedDB.open('dashboard_store', 1);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  window.__raceDb = db;
+  window.__raceHoldState = 'armed'; // armed -> held -> released
+  window.__raceHoldSteps = 0;
+  window.__raceHoldError = null;
+  window.__raceCapture = new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const startedAt = Date.now();
+    const turn = () => {
+      let race = null;
+      try {
+        const places = window.__store?.getData().places ?? [];
+        race = places.find((p) => p.title === 'Race Place') ?? null;
+      } catch { race = null; }
       if (race) {
         window.__raceMintId = race.id ?? null;
         window.__raceSnap = window.__store.getData();
-        return { mintId: window.__raceMintId, count: places.length };
+        // Capture-time disk proof: a readonly transaction created in
+        // this same turn, BEFORE the hold. It executes in creation
+        // order — ahead of this page's hold and of every claim
+        // transaction created later — and records the durable record
+        // as of the capture: if it still shows the poisoned record
+        // (poisoned revision, race place without a repaired id) and
+        // it completed while the hold was active, the capture is
+        // provably pre-settle even when this page's mint turns out
+        // to be the winner's (the claim winner's own snapshot).
+        window.__raceDiskProof = null;
+        try {
+          const proofTx = db.transaction('store_records', 'readonly');
+          const proofReq = proofTx.objectStore('store_records').get(1);
+          proofReq.onsuccess = () => {
+            const rec = proofReq.result ?? null;
+            const rp = (rec?.data?.places ?? []).find((p) => p.title === 'Race Place');
+            window.__raceDiskProof = {
+              revision: rec?.revision ?? null,
+              raceId: rp?.id ?? null,
+              whileHeld: window.__raceHoldState === 'held',
+            };
+          };
+          proofReq.onerror = () => { window.__raceDiskProof = { error: true }; };
+        } catch (error) {
+          window.__raceDiskProof = { error: String(error?.message ?? error) };
+        }
+        // Create the hold NOW, in this turn, before resolving.
+        try {
+          const tx = db.transaction('store_records', 'readwrite');
+          window.__raceHoldTx = tx;
+          const store = tx.objectStore('store_records');
+          const holdStartedAt = Date.now();
+          const step = () => {
+            // Stop placing requests once released (or after a 60 s
+            // safety cap) and the transaction commits on its own.
+            if (window.__raceHoldState !== 'held') return;
+            if (Date.now() - holdStartedAt > 60000) {
+              window.__raceHoldState = 'released';
+              return;
+            }
+            window.__raceHoldSteps++;
+            const getReq = store.get(1);
+            getReq.onsuccess = () => step();
+            getReq.onerror = () => {};
+          };
+          window.__raceHoldState = 'held';
+          step();
+          tx.oncomplete = () => { window.__raceHoldState = 'released'; };
+          tx.onabort = () => { window.__raceHoldState = 'released'; };
+        } catch (error) {
+          window.__raceHoldError = String(error?.message ?? error);
+        }
+        resolve({
+          mintId: window.__raceMintId,
+          holdState: window.__raceHoldState,
+          holdError: window.__raceHoldError,
+        });
+        return;
       }
-      await new Promise((r) => setTimeout(r, 5));
-    }
-    return null;
-  })();
+      if (Date.now() - startedAt > 12000) { resolve(null); return; }
+      channel.port2.postMessage(null);
+    };
+    channel.port1.onmessage = turn;
+    channel.port2.postMessage(null);
+  });
+};
+
+// Releases the race barrier hold: the keep-alive chain stops placing
+// requests, the held transaction commits, and any claim transactions
+// queued behind it run. Page-side use.
+const releaseRaceHoldInPage = async () => {
+  if (window.__raceHoldState === 'held') window.__raceHoldState = 'released';
 };
 
 // Attempts to save the stashed adoption-window snapshot with the race
@@ -442,12 +586,18 @@ console.log('');
 // V13-PLACES-01 — poisoned place IDs repaired at adoption, provenance
 // quarantined, edit updates one record, delete removes one record,
 // cross-tab adoption repairs and merges provenance, and repaired IDs
-// stay stable across reload, export and import. Phases 6-8 (V14) add
-// the two-tab repair race: one canonical winner, the losing tab's
-// stale snapshot rejected, its edit preserved via a fresh snapshot.
-// Assertion failures are collected per phase, not thrown at first
-// sight: the case fails once with every defect named. Download, seed
-// and navigation defects throw at once — those are mechanics.
+// stay stable across reload, export and import. Phases 6-9 (V14, QA
+// correction) add the two-tab repair race: one canonical winner, the
+// losing tab's provably stale snapshot rejected, a fresh post-settle
+// snapshot committing, and the loser's edit preserved via a fresh
+// snapshot. Assertion failures are collected per phase, not thrown at
+// first sight: the case fails once with every defect named. Download,
+// seed and navigation defects throw at once — those are mechanics.
+// If the race obtains no provably stale capture, the stale-rejection
+// coverage is NOT RUN: raceCoverageNotRun is set inside the case and
+// the recorded PASS is downgraded to NOT RUN after the group (a real
+// FAIL is never downgraded).
+let raceCoverageNotRun = null;
 await group('V13-PLACES-01', async () => {
   const defects = [];
   // Defect text goes on one line. The results writer keeps the first
@@ -726,22 +876,39 @@ await group('V13-PLACES-01', async () => {
       collect(error);
     }
 
-    // --- Phase 6 (V14): two-tab repair race — setup, barriers, settle. ---
+    // --- Phase 6 (V14, QA correction): two-tab repair race — setup,
+    // barrier captures under held claims, release, settle. ---
     // Two pages in ONE context share the native IndexedDB and
-    // BroadcastChannel. Both load the app clean; then one raw poisoned
-    // record (a single id-less place, revision bumped) is written from
-    // page A and the store's sync notification is posted, so both pages
-    // adopt it at effectively the same time. Each page's barrier
-    // captures its minted id and a tracked snapshot inside the adoption
-    // window. The assertions are winner-agnostic: whichever mint the
-    // disk settles on is the canonical id both pages must converge to.
+    // BroadcastChannel. Both load the app clean and install the race
+    // barrier (pre-opened test connection + MessageChannel turn
+    // chain). Then one raw poisoned record (a single id-less place,
+    // revision bumped) is written from page A and the store's sync
+    // notification is posted, so both pages adopt it at effectively
+    // the same time. Each page's barrier captures its minted id and a
+    // tracked snapshot in the first turn that observes the adoption,
+    // creating its IndexedDB hold in that same turn — before that
+    // page's claim transaction can exist — so no claim settles while
+    // the captures are taken. The driver releases both holds, the
+    // claims race, and the assertions are winner-agnostic: whichever
+    // mint the disk settles on is the canonical id both pages must
+    // converge to. The stale precondition for phase 7 is proven from
+    // the captures, not from the barrier alone — gate G1 (a capture
+    // whose mint differs from the canonical winner adopted the
+    // poisoned record, so its token carries the poisoned revision)
+    // or gate G2 (a barrier capture whose capture-time disk proof
+    // shows the poisoned record still durable).
     let racePageA = null;
     let racePageB = null;
     let raceCanonicalId = null;
+    let raceCanonicalRevision = null;
+    let racePoisonRevision = null;
     let raceLoserPage = null;
     let raceLoserLabel = null;
+    let raceStalePage = null;
+    let raceStaleLabel = null;
+    let raceFreshPage = null;
     let raceCandidates = null;
-    let raceAgreement = false;
+    let raceEvidence = null;
     const errorsRaceA = [];
     const errorsRaceB = [];
     try {
@@ -757,21 +924,89 @@ await group('V13-PLACES-01', async () => {
       }
       const bootRecord = await pollDiskRecord(racePageA, (rec) => !!rec);
       assert.ok(bootRecord, 'phase 6: the race context produced no clean boot record');
-      // Barriers first: each page watches for the poisoned place and
-      // stashes its mint and snapshot the moment adoption exposes it.
-      await racePageA.evaluate(installRaceCaptureInPage);
-      await racePageB.evaluate(installRaceCaptureInPage);
+      // Barriers first: each page pre-opens its test connection and
+      // starts its capture chain before the poisoned record exists.
+      await racePageA.evaluate(installRaceBarrierInPage);
+      await racePageB.evaluate(installRaceBarrierInPage);
       const poisonedRecord = JSON.parse(JSON.stringify(bootRecord));
       poisonedRecord.data.places = [RACE_PLACE];
       poisonedRecord.revision = bootRecord.revision + 1;
       poisonedRecord.savedAt = new Date().toISOString();
+      racePoisonRevision = poisonedRecord.revision;
       await racePageA.evaluate(rawWriteRecordInPage, poisonedRecord);
+      // The durable record the pages are about to adopt, read back
+      // before the sync post. While a barrier hold is active no claim
+      // transaction can execute, so this is also the durable state at
+      // capture time; if a hold missed its window, the mint gate
+      // below — not this read — arbitrates the verdict.
+      const diskAtCapture = await racePageA.evaluate(rawReadRecordInPage);
+      assert.equal(
+        diskAtCapture?.revision, racePoisonRevision,
+        `phase 6: the durable record before the sync post is revision ${diskAtCapture?.revision}, expected the poisoned revision ${racePoisonRevision}`,
+      );
+      assert.ok(
+        !(diskAtCapture?.data?.places ?? []).some((p) => p.title === RACE_PLACE.title && p.id),
+        'phase 6: the poisoned race place already carries an id before adoption',
+      );
       await racePageA.evaluate(postSyncInPage);
-      const capA = await racePageA.evaluate(() => window.__raceCapture);
-      const capB = await racePageB.evaluate(() => window.__raceCapture);
+      let holdsReleased = false;
+      const releaseHolds = async () => {
+        if (holdsReleased) return;
+        holdsReleased = true;
+        for (const racePage of [racePageA, racePageB]) {
+          await racePage.evaluate(releaseRaceHoldInPage).catch(() => {});
+        }
+      };
+      let capA = await racePageA.evaluate(() => window.__raceCapture);
+      let capB = await racePageB.evaluate(() => window.__raceCapture);
+      if (!capA || !capB) {
+        // A page whose adoption read queued behind the other page's
+        // hold cannot capture until the holds release. Release, let
+        // the late adoption land, and take a fallback capture of what
+        // the page then exposes; the mint gate decides whether it is
+        // provably stale. A page that never exposes the race place at
+        // all is an adoption defect, collected below as a failure.
+        await releaseHolds();
+        for (const [label, racePage] of [['A', racePageA], ['B', racePageB]]) {
+          const have = label === 'A' ? capA : capB;
+          if (have) continue;
+          await racePage.waitForFunction(
+            () => window.__store?.getData().places.some((p) => p.title === 'Race Place'),
+            null,
+            { timeout: 8000 },
+          ).catch(() => {});
+          const late = await racePage.evaluate(() => {
+            const race = window.__store?.getData().places.find((p) => p.title === 'Race Place');
+            if (!race) return null;
+            window.__raceMintId = race.id ?? null;
+            window.__raceSnap = window.__store.getData();
+            return { mintId: window.__raceMintId, holdState: 'none', holdError: null, fallback: true };
+          }).catch(() => null);
+          if (label === 'A') capA = late; else capB = late;
+        }
+      }
       assert.ok(capA, 'phase 6: page A never adopted the poisoned race place');
       assert.ok(capB, 'phase 6: page B never adopted the poisoned race place');
       raceCandidates = { A: capA.mintId, B: capB.mintId };
+      // Collect each page's capture-time disk proof before releasing
+      // the holds (bounded wait: a proof read queued behind the other
+      // page's hold completes only after release and then reports
+      // whileHeld false, which the gate reads honestly as no proof).
+      const raceDiskProofs = { A: null, B: null };
+      {
+        const proofDeadline = Date.now() + 1000;
+        while (Date.now() < proofDeadline && (!raceDiskProofs.A || !raceDiskProofs.B)) {
+          for (const [label, racePage] of [['A', racePageA], ['B', racePageB]]) {
+            if (!raceDiskProofs[label]) {
+              raceDiskProofs[label] = await racePage.evaluate(() => window.__raceDiskProof ?? null).catch(() => null);
+            }
+          }
+          if (!raceDiskProofs.A || !raceDiskProofs.B) await racePageA.waitForTimeout(50);
+        }
+      }
+      // Both captures are taken. Release the holds and let the
+      // claims race to one canonical winner.
+      await releaseHolds();
       // Settle: the durable record carries one valid repaired id,
       // stable across two reads, and both pages expose that same id.
       const settleDisk = await pollDiskRecord(racePageA, (rec) => {
@@ -791,6 +1026,7 @@ await group('V13-PLACES-01', async () => {
         settleRace2?.id, raceCanonicalId,
         'phase 6: the durable race id was still changing when the settle window closed',
       );
+      raceCanonicalRevision = settleDisk2?.revision ?? null;
       for (const [label, racePage] of [['A', racePageA], ['B', racePageB]]) {
         try {
           await racePage.waitForFunction(
@@ -807,17 +1043,70 @@ await group('V13-PLACES-01', async () => {
           collect(new Error(`phase 6: page ${label} did not converge to the canonical race id (exposes ${JSON.stringify(exposed)}, canonical ${raceCanonicalId}; candidates A=${JSON.stringify(raceCandidates.A)} B=${JSON.stringify(raceCandidates.B)})`));
         }
       }
-      // The loser is the page whose adoption-window mint differs from
-      // the canonical winner. If both pages captured the canonical id,
-      // the agreement is recorded and either snapshot serves: a
-      // snapshot taken inside the window still predates the settled
-      // repair, so the phase 7 rejection must hold for it too.
-      if (capA.mintId !== raceCanonicalId) {
+      // Stale proofs. A capture is provably stale under either gate:
+      //   (G1) its minted id differs from the canonical winner — the
+      //        page adopted the poisoned record (the only other
+      //        record carrying a race place is the claimed one,
+      //        whose id is the winner's), so its snapshot token
+      //        carries the poisoned revision;
+      //   (G2) it was taken under the barrier (holdState 'held') and
+      //        its capture-time disk proof — a readonly read created
+      //        in the capture turn, ahead of the hold and of every
+      //        later claim — completed while the hold was active and
+      //        still shows the poisoned record durable (poisoned
+      //        revision, race place without a repaired id). This
+      //        covers the claim winner's own pre-settle snapshot,
+      //        whose mint equals the winner's and which G1 cannot
+      //        separate from a post-settle fresh capture.
+      const proofStale = (cap, proof) => !!cap && cap.holdState === 'held' && !!proof &&
+        proof.whileHeld === true && proof.revision === racePoisonRevision &&
+        !isValidPlaceId(proof.raceId);
+      const staleA = capA.mintId !== raceCanonicalId ? 'mint-differs' : (proofStale(capA, raceDiskProofs.A) ? 'disk-proof' : null);
+      const staleB = capB.mintId !== raceCanonicalId ? 'mint-differs' : (proofStale(capB, raceDiskProofs.B) ? 'disk-proof' : null);
+      // Recorded race evidence (carried into the case detail): each
+      // capture's minted id, barrier state, capture-time disk proof
+      // and implied token revision, the disk revision at capture
+      // time (the poisoned revision, per the read-back above), and
+      // the durable winner's id and revision after settle. A capture
+      // proven stale under either gate has the poisoned revision as
+      // its implied token revision. An unproven capture holding the
+      // winner's mint stays indeterminate: claim winner pre-settle
+      // (poisoned revision) or post-settle fresh (winner revision).
+      const impliedTokenRevision = (cap, basis) => (basis
+        ? racePoisonRevision
+        : `indeterminate (${racePoisonRevision} pre-settle as claim winner, or ${raceCanonicalRevision} post-settle)`);
+      raceEvidence = {
+        poisonRevision: racePoisonRevision,
+        diskRevisionAtCapture: diskAtCapture?.revision ?? null,
+        winnerId: raceCanonicalId,
+        winnerRevision: raceCanonicalRevision,
+        captures: {
+          A: { mintId: capA.mintId, holdState: capA.holdState, fallback: !!capA.fallback, diskProof: raceDiskProofs.A, staleBasis: staleA, impliedTokenRevision: impliedTokenRevision(capA, staleA) },
+          B: { mintId: capB.mintId, holdState: capB.holdState, fallback: !!capB.fallback, diskProof: raceDiskProofs.B, staleBasis: staleB, impliedTokenRevision: impliedTokenRevision(capB, staleB) },
+        },
+      };
+      // The provably stale capture, if any, is the loser for phase
+      // 7 (G1 preferred — it names the tab whose mint lost). The
+      // remaining page serves the phase 8 fresh-snapshot check;
+      // phase 9's edit runs from the loser when one is proven, else
+      // from page A.
+      if (staleA) {
+        raceStalePage = racePageA; raceStaleLabel = 'A';
         raceLoserPage = racePageA; raceLoserLabel = 'A';
-      } else if (capB.mintId !== raceCanonicalId) {
+        raceFreshPage = racePageB;
+      } else if (staleB) {
+        raceStalePage = racePageB; raceStaleLabel = 'B';
         raceLoserPage = racePageB; raceLoserLabel = 'B';
+        raceFreshPage = racePageA;
       } else {
-        raceLoserPage = racePageA; raceLoserLabel = 'A'; raceAgreement = true;
+        raceLoserPage = racePageA; raceLoserLabel = 'A';
+        raceFreshPage = racePageB;
+        raceCoverageNotRun =
+          `no provably stale capture: both pages captured the canonical id ${raceCanonicalId} ` +
+          `(A=${JSON.stringify(capA.mintId)}, B=${JSON.stringify(capB.mintId)}) and neither capture carries a ` +
+          'capture-time disk proof of the unsettled poisoned record, so each capture either won the claim ' +
+          'or was taken after the claim settled, and its token revision is indeterminate; ' +
+          'asserting a stale rejection on such a capture would test a fresh snapshot, whose commit is correct behavior';
       }
       assert.equal(errorsRaceA.length, 0, `phase 6 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
       assert.equal(errorsRaceB.length, 0, `phase 6 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
@@ -825,23 +1114,37 @@ await group('V13-PLACES-01', async () => {
       collect(error);
     }
 
-    // --- Phase 7 (V14): the losing tab's stale snapshot must not commit. ---
-    // The loser saves its adoption-window snapshot with the race place
-    // edited. The save must be rejected as a conflict, and the proof is
-    // the disk read afterwards — never the returned flag alone.
+    // --- Phase 7 (V14, QA correction): the losing tab's provably stale
+    // snapshot must not commit. ---
+    // The loser saves its barrier-captured snapshot with the race
+    // place edited. The save must be rejected as a conflict, and the
+    // proof is the disk read afterwards — never the returned flag
+    // alone. These assertions run ONLY when phase 6 proved the stale
+    // precondition for the selected capture under gate G1 (minted id
+    // differs from the canonical winner) or G2 (barrier capture whose
+    // capture-time disk proof shows the poisoned record still
+    // durable) — either way its token carries the poisoned revision,
+    // behind the winner's claimed revision. Without a provably stale
+    // capture this phase asserts nothing and the race coverage
+    // reports NOT RUN — a fresh capture committing is correct
+    // behavior, asserted as such in phase 8.
     try {
       assert.ok(
         raceCanonicalId && raceLoserPage,
         'phase 7: phase 6 produced no canonical id or losing page to save from',
       );
-      const attempt = await raceLoserPage.evaluate(attemptRaceSaveInPage, RACE_EDITED_TITLE);
+      if (!raceStalePage) {
+        // Coverage NOT RUN (raceCoverageNotRun was set in phase 6).
+        // No rejection is asserted on an indeterminate capture.
+      } else {
+      const attempt = await raceStalePage.evaluate(attemptRaceSaveInPage, RACE_EDITED_TITLE);
       try {
         assert.equal(
           attempt.outcome, 'rejected',
-          `the losing tab's adoption-window snapshot save was not rejected (outcome ${attempt.outcome}` +
+          `the losing tab's provably stale snapshot save was not rejected (outcome ${attempt.outcome}` +
             `${attempt.outcome === 'resolved' ? `, result ${JSON.stringify(attempt.res)}` : `, ${attempt.message ?? 'no detail'}`}` +
-            `; candidates A=${JSON.stringify(raceCandidates?.A)} B=${JSON.stringify(raceCandidates?.B)}, canonical ${raceCanonicalId}` +
-            `${raceAgreement ? ', both pages captured the canonical id' : ''})`,
+            `; stale page ${raceStaleLabel} captured mint ${JSON.stringify(raceCandidates?.[raceStaleLabel])} at token revision ${racePoisonRevision}` +
+            `, canonical ${raceCanonicalId} at revision ${raceCanonicalRevision})`,
         );
         assert.ok(
           String(attempt.message ?? '').includes('Conflict'),
@@ -851,7 +1154,7 @@ await group('V13-PLACES-01', async () => {
         collect(new Error(`phase 7: ${String(error.message).replace(/\s+/g, ' ').trim()}`));
       }
       try {
-        const diskAfterLoser = await raceLoserPage.evaluate(rawReadRecordInPage);
+        const diskAfterLoser = await raceStalePage.evaluate(rawReadRecordInPage);
         const diskRace = (diskAfterLoser?.data?.places ?? []).find(
           (p) => p.title === RACE_PLACE.title || p.title === RACE_EDITED_TITLE,
         );
@@ -868,7 +1171,7 @@ await group('V13-PLACES-01', async () => {
         collect(new Error(`phase 7 durable record: ${String(error.message).replace(/\s+/g, ' ').trim()}`));
       }
       try {
-        const loserNow = await raceLoserPage.evaluate(
+        const loserNow = await raceStalePage.evaluate(
           () => window.__store.getData().places.find((p) => p.title === 'Race Place')?.id ?? null,
         );
         assert.equal(
@@ -878,37 +1181,94 @@ await group('V13-PLACES-01', async () => {
       } catch (error) {
         collect(new Error(`phase 7 loser convergence: ${String(error.message).replace(/\s+/g, ' ').trim()}`));
       }
+      }
       assert.equal(errorsRaceA.length, 0, `phase 7 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
       assert.equal(errorsRaceB.length, 0, `phase 7 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
     } catch (error) {
       collect(error);
     }
 
-    // --- Phase 8 (V14): the loser's edit lands via a fresh snapshot. ---
+    // --- Phase 8 (V14, QA correction): a FRESH post-settle snapshot
+    // must commit. ---
+    // The non-loser page takes a fresh getData() snapshot after the
+    // race settled, edits the race place, and saves. The save must
+    // commit and the disk must carry the edit under the canonical id
+    // at exactly the next revision. This is the behavior Codex's
+    // Chrome gate actually exercised when the old barrier captured
+    // post-settle snapshots; it is correct behavior and is asserted
+    // as such here, in its own phase — distinct from the stale
+    // rejection in phase 7.
+    try {
+      assert.ok(
+        raceCanonicalId && raceFreshPage && raceCanonicalRevision != null,
+        'phase 8: phase 6 produced no settled race state to build on',
+      );
+      const fresh = await raceFreshPage.evaluate(freshRaceEditInPage, {
+        canonicalId: raceCanonicalId,
+        editedTitle: RACE_FRESH_EDITED_TITLE,
+      });
+      assert.equal(
+        fresh.outcome, 'resolved',
+        `phase 8: the fresh post-settle snapshot edit did not commit (${fresh.outcome}: ${fresh.message ?? 'no detail'})`,
+      );
+      assert.deepEqual(fresh.res, { committed: true, conflict: false }, 'phase 8: the fresh edit did not commit cleanly');
+      const diskAfterFresh = await raceFreshPage.evaluate(rawReadRecordInPage);
+      const freshRace = (diskAfterFresh?.data?.places ?? []).find((p) => p.title === RACE_FRESH_EDITED_TITLE);
+      assert.ok(freshRace, 'phase 8: the fresh-edited race place is missing from the durable record');
+      assert.equal(
+        freshRace.id, raceCanonicalId,
+        `phase 8: the durable race id after the fresh edit is ${JSON.stringify(freshRace.id)}, not the canonical winner ${raceCanonicalId}`,
+      );
+      assert.equal(
+        diskAfterFresh?.revision, raceCanonicalRevision + 1,
+        `phase 8: the durable revision after the fresh edit is ${diskAfterFresh?.revision}, expected the canonical revision + 1 (${raceCanonicalRevision + 1})`,
+      );
+      assert.equal(errorsRaceA.length, 0, `phase 8 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
+      assert.equal(errorsRaceB.length, 0, `phase 8 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
+    } catch (error) {
+      collect(error);
+    }
+
+    // --- Phase 9 (V14): the loser's edit lands via a fresh snapshot. ---
     // A rejected save must not lose the user's edit: the losing tab
     // retries with a fresh tracked snapshot and the edit commits, with
     // the canonical winner id intact on disk, on both tabs after
-    // reload, and in the export.
+    // reload, and in the export. Adaptation for the QA correction:
+    // phase 8's fresh save advanced the durable record past the
+    // revision this page settled on, so the phase first waits until
+    // this page's cross-tab sync has adopted that save (its race
+    // place carries the phase 8 title); without the wait, the fresh
+    // snapshot could be taken against the pre-phase-8 revision and
+    // conflict for a scheduling reason, not a product reason.
     try {
       assert.ok(
         raceCanonicalId && raceLoserPage && racePageA && racePageB,
-        'phase 8: phase 6 produced no race state to build on',
+        'phase 9: phase 6 produced no race state to build on',
       );
+      try {
+        await raceLoserPage.waitForFunction(
+          (t) => window.__store.getData().places.some((p) => p.title === t),
+          RACE_FRESH_EDITED_TITLE,
+          { timeout: 8000 },
+        );
+      } catch {
+        collect(new Error('phase 9: the losing tab never adopted the phase 8 fresh save via cross-tab sync'));
+      }
       const fresh = await raceLoserPage.evaluate(freshRaceEditInPage, {
         canonicalId: raceCanonicalId,
         editedTitle: RACE_EDITED_TITLE,
       });
       assert.equal(
         fresh.outcome, 'resolved',
-        `phase 8: the losing tab's fresh-snapshot edit did not commit (${fresh.outcome}: ${fresh.message ?? 'no detail'})`,
+        `phase 9: the losing tab's fresh-snapshot edit did not commit (${fresh.outcome}: ${fresh.message ?? 'no detail'})`,
       );
-      assert.deepEqual(fresh.res, { committed: true, conflict: false }, 'phase 8: the fresh edit did not commit cleanly');
+      assert.deepEqual(fresh.res, { committed: true, conflict: false }, 'phase 9: the fresh edit did not commit cleanly');
       const diskAfterEdit = await raceLoserPage.evaluate(rawReadRecordInPage);
       const editedRace = (diskAfterEdit?.data?.places ?? []).find((p) => p.title === RACE_EDITED_TITLE);
-      assert.ok(editedRace, 'phase 8: the edited race place is missing from the durable record');
+      assert.ok(editedRace, 'phase 9: the edited race place is missing from the durable record');
       assert.equal(
         editedRace.id, raceCanonicalId,
-        `phase 8: the durable race id after the legitimate edit is ${JSON.stringify(editedRace.id)}, not the canonical winner ${raceCanonicalId}`,
+        `phase 9: the durable race id after the legitimate edit is ${JSON.stringify(editedRace.id)}, not the canonical winner ${raceCanonicalId}`,
       );
       for (const [label, racePage] of [['A', racePageA], ['B', racePageB]]) {
         await racePage.reload({ waitUntil: 'load' });
@@ -922,31 +1282,50 @@ await group('V13-PLACES-01', async () => {
           (t) => window.__store.getData().places.find((p) => p.title === t) ?? null,
           RACE_EDITED_TITLE,
         );
-        assert.ok(exposed, `phase 8: race page ${label} does not expose the edited race place after reload`);
+        assert.ok(exposed, `phase 9: race page ${label} does not expose the edited race place after reload`);
         assert.equal(
           exposed.id, raceCanonicalId,
-          `phase 8: race page ${label} exposes race id ${JSON.stringify(exposed.id)} after reload, not the canonical ${raceCanonicalId}`,
+          `phase 9: race page ${label} exposes race id ${JSON.stringify(exposed.id)} after reload, not the canonical ${raceCanonicalId}`,
         );
       }
       const raceExport = await exportCapture(racePageA);
       const exportedRace = (raceExport.parsed.data?.places ?? []).find((p) => p.title === RACE_EDITED_TITLE);
-      assert.ok(exportedRace, 'phase 8 export: the edited race place is missing from the export');
+      assert.ok(exportedRace, 'phase 9 export: the edited race place is missing from the export');
       assert.equal(
         exportedRace.id, raceCanonicalId,
-        'phase 8 export: the exported race place does not carry the canonical id',
+        'phase 9 export: the exported race place does not carry the canonical id',
       );
-      assert.equal(errorsRaceA.length, 0, `phase 8 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
-      assert.equal(errorsRaceB.length, 0, `phase 8 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
+      assert.equal(errorsRaceA.length, 0, `phase 9 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
+      assert.equal(errorsRaceB.length, 0, `phase 9 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
     } catch (error) {
       collect(error);
     }
 
     assert.equal(defects.length, 0, defects.join(' || '));
-    return 'poisoned load repaired the missing, duplicate and invalid place ids at adoption with the valid neighbour id byte-identical and exactly three provenance entries (original objects at indices 1, 2, 3) on the durable record; the edit of the formerly id-less place updated one record (count stayed 4, no original left beside the edit); delete by repaired id removed exactly the duplicate-repaired record; a cross-tab raw poisoned append was adopted with a repaired id, persisted, and its provenance merged behind the existing entries; after reload the ids were byte-identical, the export carried the same ids and provenance, and the exact export imported with committed:true into a clean context with the same ids and provenance on disk; two simultaneous cross-tab adopters of a fresh poisoned record settled on one canonical race id, the losing tab adoption-window snapshot save was rejected as a conflict with the durable record verified unchanged on disk, and the losing tab edit then committed through a fresh snapshot with the canonical id intact on disk, on both tabs after reload, and in the export';
+    return 'poisoned load repaired the missing, duplicate and invalid place ids at adoption with the valid neighbour id byte-identical and exactly three provenance entries (original objects at indices 1, 2, 3) on the durable record; the edit of the formerly id-less place updated one record (count stayed 4, no original left beside the edit); delete by repaired id removed exactly the duplicate-repaired record; a cross-tab raw poisoned append was adopted with a repaired id, persisted, and its provenance merged behind the existing entries; after reload the ids were byte-identical, the export carried the same ids and provenance, and the exact export imported with committed:true into a clean context with the same ids and provenance on disk; two simultaneous cross-tab adopters of a fresh poisoned record were captured under a native IndexedDB barrier hold (no claim could settle during capture) and settled on one canonical race id; ' +
+      (raceStalePage
+        ? 'the losing tab provably stale barrier snapshot save was rejected as a conflict with the durable record verified unchanged on disk; '
+        : 'no provably stale capture was obtained, so the stale-rejection assertions did not run (see the NOT RUN note); ') +
+      'a fresh post-settle snapshot from the other tab committed its edit under the canonical id at the next revision; and the losing tab edit then committed through a fresh snapshot with the canonical id intact on disk, on both tabs after reload, and in the export. ' +
+      `Race evidence: ${JSON.stringify(raceEvidence)}`;
   } finally {
     for (const context of contexts) await context.close();
   }
 });
+
+// Downgrade a PASS to NOT RUN when the race obtained no provably stale
+// capture: every asserted check passed, but the stale-rejection
+// coverage did not run, and a PASS would claim it did. A FAIL is never
+// downgraded — a real defect outranks a coverage gap. The exit code
+// already treats NOT RUN as nonzero, so this can never read as success.
+if (raceCoverageNotRun) {
+  const entry = results.find((r) => r.id === 'V13-PLACES-01');
+  if (entry && entry.status === 'PASS') {
+    entry.status = 'NOT RUN';
+    entry.detail = `${entry.detail} || RACE COVERAGE NOT RUN: ${raceCoverageNotRun}`;
+    console.log(`NOT RUN  V13-PLACES-01 [race coverage] ${raceCoverageNotRun}`);
+  }
+}
 
 await browser.close();
 server.close();
