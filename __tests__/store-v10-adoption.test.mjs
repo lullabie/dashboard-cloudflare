@@ -684,6 +684,16 @@ async function runTests() {
         snap19b.places[1].id === 'place_conflict1' && validPlaceId(snap19b.places[2].id) &&
         snap19b.places[2].id !== 'place_conflict1',
         snap19b.places);
+    // V14 adaptation: the conflict adoption's repair claim must
+    // settle before the follow-up snapshot is captured. Under V14
+    // a snapshot captured during the claim window carries the
+    // pre-claim token and CAS-fails once the claim lands — by
+    // design, so no speculative mint is ever paired with a
+    // writable canonical token. The assertion's intent is
+    // unchanged (the provenance survives the NEXT authoritative
+    // save); the save now starts from the post-settle canonical
+    // snapshot, as a real edit seconds later would.
+    await sleep(60);
     const snap19c = store.getData();
     snap19c.goals.push({ title: 'V13 after conflict' });
     const save19 = await store.saveData(snap19c);
@@ -722,8 +732,12 @@ async function runTests() {
         snapMid.places);
     let staleErr = null;
     try { await store.saveData(snapPre); } catch (e) { staleErr = e; }
+    // V14 adaptation: the BC adoption's repair claim advanced the
+    // disk revision from the adopted 2 to 3 (a repair that changes
+    // persisted data advances the CAS identity). The assertion's
+    // intent is unchanged — the stale save must not move the disk.
     check('V13 pre-repair snapshot save is rejected as a conflict (CAS holds)',
-        !!staleErr && staleErr.message.includes('Conflict') && dbState[1].revision === 2,
+        !!staleErr && staleErr.message.includes('Conflict') && dbState[1].revision === 3,
         { staleErr, revision: dbState[1].revision });
     // The Codex repro: edit the single adopted place by id. Before the
     // fix this produced a second record (before 1, after 2).
@@ -790,8 +804,12 @@ async function runTests() {
             JSON.stringify(e.value) === JSON.stringify(bcAddedPlace)) &&
         dbState[1].envelopeExtras.durableKey === 'keep-durable',
         { places: dbState[1].data.places, extras: dbState[1].envelopeExtras });
-    check('V13 BC adoption repair persisted exactly once, revision kept',
-        placeWrites === 1 && dbState[1].revision === adoptedRev21, { placeWrites, revision: dbState[1].revision });
+    // V14 adaptation: exactly-once still holds (one claim write),
+    // but the claim now writes at revision+1 — a repair that
+    // changes persisted data advances the CAS identity instead of
+    // keeping the adopted revision (V13 semantics, superseded).
+    check('V14 BC adoption repair persisted exactly once, revision advanced by 1',
+        placeWrites === 1 && dbState[1].revision === adoptedRev21 + 1, { placeWrites, revision: dbState[1].revision });
     let staleErr21 = null;
     try { await store.saveData(snapPreBc21); } catch (e) { staleErr21 = e; }
     check('V13 pre-repair snapshot cannot overwrite the persisted BC repair',
@@ -818,12 +836,14 @@ async function runTests() {
         { env22: env22 && env22.data.places, q22 });
     dbState = { 1: dbState[1] }; // drop the counting Proxy for later sections
 
-    // --- 23. V13: the repair write is CAS-guarded. If the disk record
-    // advances past the adopted record before the guarded write reads
-    // it, the write is withheld: the newer record is never clobbered,
-    // and its own adoption path governs. The poll observes the
-    // adoption in memory, then advances the disk in the same tick,
-    // before the guarded write's re-read can run.
+    // --- 23. V13/V14: the repair claim is CAS-guarded. If the disk
+    // record advances past the adopted record before the claim's
+    // re-read runs, the claim writes nothing: the newer record is
+    // never clobbered. V14: the superseded tab then adopts the
+    // authoritative disk record instead of keeping a divergent
+    // speculative repair. The poll observes the adoption in
+    // memory, then advances the disk in the same tick, before the
+    // claim's re-read can run.
     dbState = { 1: record(baseData({ places: [{ id: 'place_guardbase1', title: 'Guard Base' }] })) };
     await store.initStore();
     const guardPoisoned = { title: 'Guard Poisoned' };
@@ -848,9 +868,136 @@ async function runTests() {
         dbState[1].data.places[0].id === 'place_guardnew1' &&
         dbState[1].envelopeExtras.guardKey === 'newer' && !dbState[1].envelopeExtras.quarantine,
         dbState[1]);
-    check('V13 memory keeps the adopted repair even though its write was withheld',
-        store.getData().places.some((p) => p.title === 'Guard Poisoned' && validPlaceId(p.id)),
+    // V14 adaptation: V13 asserted memory keeps the withheld
+    // repair; V14's claim contract (mechanism point 1) requires
+    // the superseded tab to adopt the authoritative disk record,
+    // so memory converges to the newer record instead of holding
+    // a divergent speculative repair under a stale token.
+    check('V14 superseded claim adopts the authoritative disk record (memory converges)',
+        store.getData().places.length === 1 && store.getData().places[0].id === 'place_guardnew1',
         store.getData().places);
+
+    // --- 24. V14: simultaneous adopters of one poisoned record must
+    // converge on ONE canonical repair (Codex V14, verified 3/3 in
+    // installed Chrome at 41776d9). Two tabs adopt the same record at
+    // the same generation/revision; each mints a DIFFERENT id for the
+    // same place. Under V13 the repair write kept the adopted
+    // revision, so a tracked snapshot captured from the losing tab
+    // during the adoption window still matched the disk CAS token
+    // after the winner's repair landed, and saving it committed and
+    // overwrote the winner's identity. V14 makes the repair claim
+    // transactional: the claim writes the repaired record at
+    // revision+1, the claiming tab adopts exactly what it wrote, and
+    // a tab whose claim finds the disk advanced adopts the disk
+    // record instead. Until a claim settles, snapshots carry the
+    // pre-claim token, so every speculative snapshot CAS-fails once
+    // a winner lands. This section uses a second module instance as
+    // the second tab (same mock IDB/BroadcastChannel plumbing).
+    const storeB = await import('../js/store.js?v14-instance-b');
+    const raceClean = { id: 'place_raceclean1', title: 'Race Clean' };
+    dbState = { 1: record(baseData({ places: [raceClean] }), {}, 10, 'gen-v14-race') };
+    await store.initStore();
+    const chanA = globalThis._dashboardStoreBc;
+    await storeB.initStore();
+    const chanB = globalThis._dashboardStoreBc;
+    check('V14 setup: both tabs ready on the same clean record',
+        store.getData().places[0].id === 'place_raceclean1' &&
+        storeB.getData().places[0].id === 'place_raceclean1',
+        { a: store.getData().places, b: storeB.getData().places });
+    // A raw writer lands the poisoned record at the next revision;
+    // both tabs are notified at the same time.
+    const racePlace = { title: 'Race', lat: 43, lng: -79 };
+    dbState[1] = record(baseData({ places: [racePlace] }), { raceKey: 'keep-race' }, 11, 'gen-v14-race');
+    if (chanA && typeof chanA.onmessage === 'function') chanA.onmessage({ data: 'sync' });
+    if (chanB && typeof chanB.onmessage === 'function') chanB.onmessage({ data: 'sync' });
+    // Capture each tab's tracked snapshot the moment its own
+    // speculative mint becomes visible, before either claim settles.
+    let snapRaceA = null; let snapRaceB = null;
+    for (let i = 0; i < 500 && (!snapRaceA || !snapRaceB); i++) {
+        await new Promise((r) => setImmediate(r));
+        if (!snapRaceA) {
+            const d = store.getData();
+            if (d.places.length === 1 && d.places[0].title === 'Race' && validPlaceId(d.places[0].id)) snapRaceA = d;
+        }
+        if (!snapRaceB) {
+            const d = storeB.getData();
+            if (d.places.length === 1 && d.places[0].title === 'Race' && validPlaceId(d.places[0].id)) snapRaceB = d;
+        }
+    }
+    check('V14 both tabs adopted the poisoned record and captured window snapshots',
+        !!snapRaceA && !!snapRaceB, { snapRaceA, snapRaceB });
+    const mintRaceA = snapRaceA && snapRaceA.places[0].id;
+    const mintRaceB = snapRaceB && snapRaceB.places[0].id;
+    check('V14 the two tabs minted DIFFERENT ids under the same token (race is real)',
+        !!mintRaceA && !!mintRaceB && mintRaceA !== mintRaceB, { mintRaceA, mintRaceB });
+    await sleep(200); // let both repair claims settle
+    const winnerId = dbState[1].data.places[0] && dbState[1].data.places[0].id;
+    check('V14 disk settled on one canonical winner id from one of the two mints',
+        dbState[1].data.places.length === 1 && (winnerId === mintRaceA || winnerId === mintRaceB),
+        { winnerId, mintRaceA, mintRaceB, places: dbState[1].data.places });
+    check('V14 the repair claim advanced the disk revision by exactly 1',
+        dbState[1].revision === 12, dbState[1].revision);
+    const diskProv24 = (quarantineOf(dbState[1].envelopeExtras) || []).filter((e) => e.path === 'places');
+    check('V14 provenance for the raced place appears exactly once on disk; unknown extras kept',
+        diskProv24.length === 1 && diskProv24[0].index === 0 &&
+        JSON.stringify(diskProv24[0].value) === JSON.stringify(racePlace) &&
+        dbState[1].envelopeExtras.raceKey === 'keep-race',
+        dbState[1].envelopeExtras);
+    check('V14 both tabs converged on the canonical winner id',
+        store.getData().places[0].id === winnerId && storeB.getData().places[0].id === winnerId,
+        { a: store.getData().places, b: storeB.getData().places, winnerId });
+    const aIsLoser = mintRaceA !== winnerId;
+    const loserInst = aIsLoser ? store : storeB;
+    const loserSnap = aIsLoser ? snapRaceA : snapRaceB;
+    const winnerInst = aIsLoser ? storeB : store;
+    const winnerSnap = aIsLoser ? snapRaceB : snapRaceA;
+    const diskBeforeLoserSave = JSON.stringify(dbState[1]);
+    let loserErr = null;
+    try { await loserInst.saveData(loserSnap); } catch (e) { loserErr = e; }
+    check('V14 losing tab window snapshot save is rejected as a conflict (never commits)',
+        !!loserErr && loserErr.message.includes('Conflict'), loserErr);
+    check('V14 the rejected loser save left the disk byte-unchanged (winner identity intact)',
+        JSON.stringify(dbState[1]) === diskBeforeLoserSave, dbState[1]);
+    check('V14 the losing tab has adopted the winner after the conflict',
+        loserInst.getData().places[0].id === winnerId, loserInst.getData().places);
+    let winnerWindowErr = null;
+    try { await winnerInst.saveData(winnerSnap); } catch (e) { winnerWindowErr = e; }
+    check('V14 the winning tab window snapshot also CAS-fails (pre-claim token); only post-settle snapshots write',
+        !!winnerWindowErr && winnerWindowErr.message.includes('Conflict') &&
+        JSON.stringify(dbState[1]) === diskBeforeLoserSave,
+        winnerWindowErr);
+    // The loser's real user edit survives: retry with a fresh
+    // (post-settle, canonical) snapshot.
+    const loserFresh = loserInst.getData();
+    loserFresh.places[0].title = 'Race Edited';
+    const loserRetry = await loserInst.saveData(loserFresh);
+    const diskProv24b = (quarantineOf(dbState[1].envelopeExtras) || []).filter((e) => e.path === 'places');
+    check('V14 loser edit retried with a fresh snapshot commits and preserves the winner id and provenance',
+        loserRetry.committed === true && dbState[1].data.places.length === 1 &&
+        dbState[1].data.places[0].id === winnerId && dbState[1].data.places[0].title === 'Race Edited' &&
+        diskProv24b.length === 1,
+        { loserRetry, places: dbState[1].data.places, diskProv24b });
+    // The mock BroadcastChannel postMessage is a no-op, so deliver
+    // the retry commit's sync to the winning tab by hand, exactly
+    // as the real channel would; only then is its next snapshot
+    // post-settle for the new revision.
+    const winnerChan = aIsLoser ? chanB : chanA;
+    if (winnerChan && typeof winnerChan.onmessage === 'function') {
+        winnerChan.onmessage({ data: 'sync' });
+        await sleep(60);
+    }
+    const winnerFresh = winnerInst.getData();
+    winnerFresh.goals.push({ title: 'Winner follow-up' });
+    const winnerSave = await winnerInst.saveData(winnerFresh);
+    check('V14 winning tab post-settle snapshot saves normally',
+        winnerSave.committed === true && dbState[1].data.places[0].id === winnerId,
+        { winnerSave, places: dbState[1].data.places });
+    await store.initStore(); // reload both tabs on the canonical record
+    await storeB.initStore();
+    check('V14 reload keeps the canonical id on both tabs (no re-mint)',
+        store.getData().places[0].id === winnerId && storeB.getData().places[0].id === winnerId &&
+        store.getData().places[0].title === 'Race Edited',
+        { a: store.getData().places, b: storeB.getData().places });
 
     console.log(`\nTests completed: ${passed} passed, ${failed} failed.`);
     if (failed > 0) process.exit(1);
