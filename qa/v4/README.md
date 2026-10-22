@@ -48,6 +48,7 @@ Single-spec route (diagnosis only):
 node qa/v4/ui-browser.spec.mjs [--tree <path>] [--cases <id,id>]
 node qa/v4/storage-browser.spec.mjs [--tree <path>]
 node qa/v4/feeds-browser.spec.mjs [--tree <path>]
+node qa/v4/jobs-browser.spec.mjs [--tree <path>]
 ```
 
 Tree under test, first match wins: `--tree`, `DASH_TREE` (UI spec),
@@ -137,6 +138,7 @@ about Workers, D1 or any hosted behavior.
 | `ui-browser.spec.mjs` | TEST-UI-001, TEST-UI-002a–j, V5-STORE-02 |
 | `storage-browser.spec.mjs` | TEST-STORE-001–005, V5-STORE-01 |
 | `feeds-browser.spec.mjs` | TEST-FEEDS-001–003, V5-FEEDS-01–03 |
+| `jobs-browser.spec.mjs` | V8-JOBS-OTHER |
 | `acceptance.spec.mjs` | Harness skeleton: fixture shape and fault/response primitive checks; browser-required cases report NOT RUN. Not integrated acceptance |
 | `feed-responses.mjs` | Repo-local fixture builders (RSS, oversize, malformed) imported by the feeds spec |
 | `storage-faults.mjs` | Fault hooks for the acceptance skeleton |
