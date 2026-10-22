@@ -2,7 +2,8 @@
 // Run: node qa/v4/storage-browser.spec.mjs [--tree <path>]
 //        [--results-out <path>]
 // Real-browser storage cases for js/store.js. No store mocks. The spec serves
-// a static tree from a local temporary origin, opens Firefox with an isolated
+// a static tree from a local temporary origin, opens a Chromium-family
+// browser (Chrome/Brave/Chromium via QA_BROWSER) with an isolated
 // context per case, and drives the real store module in the page. IndexedDB,
 // BroadcastChannel and localStorage are the native browser APIs.
 //
@@ -12,10 +13,12 @@
 // SHA-256 read from that tree. No source hash is pinned. No source is
 // substituted.
 //
-// Playwright resolution order: QA_PLAYWRIGHT_CORE or PLAYWRIGHT_MODULE path,
-// bare "playwright-core" or "playwright" import (the documented pinned
-// install in qa/v4/README.md), then fallbacks only: the Python Playwright
-// driver package, the npx cache. If no driver loads or Firefox does not
+// Browser launch: the shared helper qa/v4/browser-launch.mjs resolves the
+// Playwright module (PLAYWRIGHT_MODULE, bare "playwright"/"playwright-core",
+// qa/v4 node_modules, the Python Playwright driver package, the npx cache)
+// and the selection QA_BROWSER=chrome|brave|chromium (default chromium;
+// executable override QA_BROWSER_EXECUTABLE_PATH). There is no fallback.
+// If no driver loads or the selected browser does not
 // launch, every case reports NOT RUN with the blocker and the process exits
 // 1. A NOT RUN run never reports success. Results are written as JSON next
 // to this spec (browser-results.json) unless --results-out or
@@ -32,6 +35,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { writeBrowserResults } from '../../scripts/write-browser-results.mjs';
+import { launchSelectedBrowser } from './browser-launch.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -53,6 +57,15 @@ const CASE_IDS = [
   'TEST-STORE-005',
 ];
 
+let browserInfo = null;
+const attemptedKind = String(process.env.QA_BROWSER ?? 'chromium').trim().toLowerCase() || 'chromium';
+function currentRuntime() {
+  const base = process.env.QA_RUNTIME ?? `node ${process.version}`;
+  return browserInfo
+    ? `${base}; browser ${browserInfo.actualName} ${browserInfo.version} (QA_BROWSER=${browserInfo.selection.kind})`
+    : `${base}; browser ${attemptedKind} not launched`;
+}
+
 const results = [];
 
 function record(id, boundary, status, detail) {
@@ -67,46 +80,6 @@ async function group(id, fn) {
   } catch (error) {
     record(id, 'REAL-BROWSER', 'FAIL', (error?.stack ?? String(error)).split('\n').slice(0, 4).join(' | '));
   }
-}
-
-// --- Playwright driver resolution -------------------------------------------
-
-async function loadFirefox() {
-  const candidates = [];
-  if (process.env.QA_PLAYWRIGHT_CORE) candidates.push(process.env.QA_PLAYWRIGHT_CORE);
-  candidates.push('playwright-core', 'playwright');
-  try {
-    const libDir = path.join(os.homedir(), '.local', 'lib');
-    for (const entry of readdirSync(libDir)) {
-      const pkg = path.join(libDir, entry, 'site-packages', 'playwright', 'driver', 'package');
-      if (existsSync(path.join(pkg, 'index.mjs'))) candidates.push(pkg);
-    }
-  } catch {}
-  try {
-    const npxDir = path.join(os.homedir(), '.npm', '_npx');
-    for (const entry of readdirSync(npxDir)) {
-      const pkg = path.join(npxDir, entry, 'node_modules', 'playwright-core');
-      if (existsSync(pkg)) candidates.push(pkg);
-    }
-  } catch {}
-
-  const errors = [];
-  for (const candidate of candidates) {
-    try {
-      const mod = await import(path.isAbsolute(candidate) ? pathToFileURL(path.join(candidate.replace(/[\\/]$/, ''), 'index.mjs')).href : candidate).catch(
-        async () => {
-          const require = createRequire(import.meta.url);
-          return require(candidate);
-        },
-      );
-      const fw = mod.firefox ?? mod.default?.firefox;
-      if (fw) return fw;
-      errors.push(`${candidate}: no firefox export`);
-    } catch (error) {
-      errors.push(`${candidate}: ${error.message.split('\n')[0]}`);
-    }
-  }
-  throw new Error(`No Playwright driver loadable. Tried: ${errors.join(' ; ')}`);
 }
 
 // --- Static server ------------------------------------------------------------
@@ -236,7 +209,7 @@ function emitResults() {
       outFile: path.resolve(out),
       tree: TREE_ROOT,
       testedCommit: process.env.QA_TESTED_COMMIT ?? 'working-tree',
-      runtime: process.env.QA_RUNTIME ?? `node ${process.version}`,
+      runtime: currentRuntime(),
       runId: process.env.QA_RUN_ID,
       cases: results,
     });
@@ -247,12 +220,13 @@ function emitResults() {
   }
 }
 
-let firefox;
+let browser;
 try {
-  firefox = await loadFirefox();
+  browserInfo = await launchSelectedBrowser();
+  browser = browserInfo.browser;
 } catch (error) {
-  console.log(`Driver blocker: ${error.message}`);
-  for (const id of CASE_IDS) record(id, 'REAL-BROWSER', 'NOT RUN', `Missing precondition: ${error.message}`);
+  console.log(`Browser launch blocker: ${error.message.split('\n')[0]}`);
+  for (const id of CASE_IDS) record(id, 'REAL-BROWSER', 'NOT RUN', `Missing precondition: browser launch failed: ${error.message.split('\n')[0]}`);
   console.log('Summary: PASS 0; NOT RUN 6; FAIL 0');
   emitResults();
   process.exit(1);
@@ -260,18 +234,7 @@ try {
 
 const { server, origin } = await startServer(TREE_ROOT);
 console.log(`Local temporary origin: ${origin}`);
-let browser;
-try {
-  browser = await firefox.launch({ headless: true });
-} catch (error) {
-  console.log(`Browser launch blocker: ${error.message.split('\n')[0]}`);
-  for (const id of CASE_IDS) record(id, 'REAL-BROWSER', 'NOT RUN', `Missing precondition: Firefox launch failed: ${error.message.split('\n')[0]}`);
-  console.log('Summary: PASS 0; NOT RUN 6; FAIL 0');
-  emitResults();
-  server.close();
-  process.exit(1);
-}
-console.log(`Browser: Firefox ${browser.version()}`);
+console.log(`Browser: ${browserInfo.runtimeLabel} (QA_BROWSER=${browserInfo.selection.kind})`);
 console.log('');
 
 async function newCasePage(initScript) {
@@ -580,6 +543,6 @@ const counts = results.reduce((acc, r) => {
 }, {});
 console.log('');
 console.log(`Summary: PASS ${counts.PASS ?? 0}; NOT RUN ${counts['NOT RUN'] ?? 0}; FAIL ${counts.FAIL ?? 0}`);
-console.log('Boundary rule: PASS here means the case ran in a real Firefox profile against the native IndexedDB, BroadcastChannel and localStorage of the tree named in the header.');
+console.log('Boundary rule: PASS here means the case ran in a real Chromium-family browser context against the native IndexedDB, BroadcastChannel and localStorage of the tree named in the header.');
 if ((counts.FAIL ?? 0) > 0 || (counts['NOT RUN'] ?? 0) > 0) process.exitCode = 1;
 emitResults();
