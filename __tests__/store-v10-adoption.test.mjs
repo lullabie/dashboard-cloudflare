@@ -83,6 +83,15 @@ class File extends Blob { constructor(parts, filename) { super(parts); this.name
 globalThis.Blob = Blob;
 globalThis.File = File;
 
+// FileReader mock for importData round-trip tests (V11 sections).
+globalThis.FileReader = class {
+    readAsText(input) {
+        const text = typeof input === 'string' ? input
+            : (input && Array.isArray(input.parts) ? input.parts.join('') : String(input && input.text !== undefined ? input.text : input));
+        setTimeout(() => { if (this.onload) this.onload({ target: { result: text } }); }, 1);
+    }
+};
+
 // Capture the last downloaded JSON payload (export / draft readback).
 let lastDownloadText = null;
 globalThis.URL = {
@@ -259,6 +268,120 @@ async function runTests() {
     const diskQ7 = quarantineOf(dbState[1].envelopeExtras);
     check('Malformed root raw value quarantined',
         Array.isArray(diskQ7) && qEntries(diskQ7, 'data').some((e) => e.value === null), dbState[1].envelopeExtras);
+
+    // --- 8. V11 (a)+(d)+(e): BroadcastChannel adoption partitions the
+    // in-memory snapshot, but the disk record stays raw. An export with
+    // NO intervening save must still export the partitioned snapshot:
+    // one internally consistent selected record, not raw disk data
+    // paired with the correct in-memory quarantine.
+    const jobOk = { id: 'job-v11-1', title: 'Field Engineer' };
+    const goalOk = { title: 'V11 Goal' };
+    dbState = { 1: record(baseData({ goals: [{ title: 'Clean boot goal' }] })) };
+    const init8 = await store.initStore();
+    check('V11 clean boot is ready', init8.status === 'ready', init8);
+    dbState[1] = record(baseData({
+        goals: [goalOk, 42],
+        jobs: [jobOk, null]
+    }), { diskOnlyKey: 'v11-disk' }, dbState[1].revision + 1);
+    const bc8 = liveBc();
+    check('V11 cross-tab channel handler registered', !!bc8, bcInstances.length);
+    if (bc8) { bc8.onmessage({ data: 'sync' }); await sleep(60); }
+    const snapV11 = store.getData();
+    check('V11 BC adoption partitions the in-memory snapshot',
+        snapV11.goals.length === 1 && snapV11.goals[0].title === 'V11 Goal' &&
+        snapV11.jobs.length === 1 && snapV11.jobs[0].id === 'job-v11-1',
+        { goals: snapV11.goals, jobs: snapV11.jobs });
+    const diskBefore8 = JSON.stringify(dbState[1]);
+    lastDownloadText = null;
+    await store.exportData();
+    check('V11 export performs no disk write (BC-adopted raw record untouched)',
+        JSON.stringify(dbState[1]) === diskBefore8, dbState[1]);
+    let env8 = null;
+    try { env8 = JSON.parse(lastDownloadText); } catch (e) {}
+    check('V11 export envelope keeps the standard shape',
+        !!env8 && env8.app === 'dashboard' && env8.schemaVersion === 1 && typeof env8.exportedAt === 'string', env8 && Object.keys(env8));
+    check('V11 export with no intervening save contains no malformed entries',
+        !!env8 && env8.data.goals.length === 1 && env8.data.goals[0].title === 'V11 Goal' &&
+        env8.data.jobs.length === 1 && env8.data.jobs[0].id === 'job-v11-1',
+        env8 && env8.data);
+    const q8 = env8 && quarantineOf(env8);
+    check('V11 export quarantine exactly matches the malformed entries',
+        Array.isArray(q8) && q8.length === 2 &&
+        qEntries(q8, 'goals').some((e) => e.index === 1 && e.value === 42) &&
+        qEntries(q8, 'jobs').some((e) => e.index === 1 && e.value === null),
+        q8);
+    check('V11 unknown extras of the selected record survive export',
+        !!env8 && env8.diskOnlyKey === 'v11-disk', env8 && Object.keys(env8 || {}));
+
+    // --- 9. V11 (b): that exact export passes the app's own strict import
+    // validation and round-trips with data and quarantine preserved.
+    let importRes = null;
+    store.importData(lastDownloadText, (res) => { importRes = res; });
+    await sleep(120);
+    check('V11 exact export imports successfully (committed)',
+        !!importRes && importRes.committed === true, importRes);
+    const snap9v11 = store.getData();
+    check('V11 import round-trip preserves valid neighbours and order',
+        snap9v11.goals.length === 1 && snap9v11.goals[0].title === 'V11 Goal' &&
+        snap9v11.jobs.length === 1 && snap9v11.jobs[0].id === 'job-v11-1' && snap9v11.jobs[0].title === 'Field Engineer',
+        { goals: snap9v11.goals, jobs: snap9v11.jobs });
+    const diskQ9 = quarantineOf(dbState[1].envelopeExtras);
+    check('V11 import round-trip preserves the quarantine on disk',
+        Array.isArray(diskQ9) && diskQ9.length === 2 &&
+        qEntries(diskQ9, 'goals').some((e) => e.index === 1 && e.value === 42) &&
+        qEntries(diskQ9, 'jobs').some((e) => e.index === 1 && e.value === null),
+        dbState[1].envelopeExtras);
+    check('V11 import round-trip preserves unknown extras on disk',
+        dbState[1].envelopeExtras.diskOnlyKey === 'v11-disk', dbState[1].envelopeExtras);
+
+    // --- 10. V11 (c)+(d)+(e): the disk record is newer than the cache and
+    // no adoption runs in between. Export must select the disk record:
+    // its latest valid data, partitioned, with its own quarantine and
+    // unknown extras — never the stale cache, never raw disk data.
+    const newerGoal = { title: 'Newer disk goal' };
+    const newerJob = { id: 'job-v11-2', title: 'Newer Job' };
+    dbState[1] = record(baseData({
+        goals: [newerGoal],
+        jobs: [newerJob, 'junk-entry']
+    }), { quarantine: [{ path: 'places', index: 0, value: null }], newerDiskKey: 'newer-value' },
+        dbState[1].revision + 5, dbState[1].generation);
+    const diskBefore10 = JSON.stringify(dbState[1]);
+    lastDownloadText = null;
+    await store.exportData();
+    check('V11 export performs no disk write (newer record untouched)',
+        JSON.stringify(dbState[1]) === diskBefore10, dbState[1]);
+    let env10 = null;
+    try { env10 = JSON.parse(lastDownloadText); } catch (e) {}
+    check('V11 export selects the newer disk data, not the stale cache',
+        !!env10 && env10.data.goals.length === 1 && env10.data.goals[0].title === 'Newer disk goal' &&
+        env10.data.jobs.length === 1 && env10.data.jobs[0].id === 'job-v11-2',
+        env10 && env10.data);
+    const q10 = env10 && quarantineOf(env10);
+    check('V11 export of newer record merges its quarantine with the new partition findings',
+        Array.isArray(q10) && q10.length === 2 &&
+        qEntries(q10, 'places').some((e) => e.index === 0 && e.value === null) &&
+        qEntries(q10, 'jobs').some((e) => e.index === 1 && e.value === 'junk-entry'),
+        q10);
+    check('V11 unknown extras of the newer record survive export',
+        !!env10 && env10.newerDiskKey === 'newer-value', env10 && Object.keys(env10 || {}));
+    const snapAfter10 = store.getData();
+    check('V11 export does not adopt or mutate the in-memory cache',
+        snapAfter10.goals.length === 1 && snapAfter10.goals[0].title === 'V11 Goal' &&
+        snapAfter10.jobs.length === 1 && snapAfter10.jobs[0].id === 'job-v11-1',
+        { goals: snapAfter10.goals, jobs: snapAfter10.jobs });
+
+    // --- 11. V11 (f): no-record fallback export is unchanged: in-memory
+    // snapshot plus in-memory extras.
+    dbState = {};
+    const memSnap = store.getData();
+    lastDownloadText = null;
+    await store.exportData();
+    let env11 = null;
+    try { env11 = JSON.parse(lastDownloadText); } catch (e) {}
+    check('V11 no-record fallback exports the in-memory snapshot',
+        !!env11 && JSON.stringify(env11.data) === JSON.stringify(memSnap), env11 && env11.data);
+    check('V11 no-record fallback exports the in-memory quarantine',
+        !!env11 && Array.isArray(quarantineOf(env11)) && quarantineOf(env11).length === 2, env11 && env11.quarantine);
 
     console.log(`\nTests completed: ${passed} passed, ${failed} failed.`);
     if (failed > 0) process.exit(1);
