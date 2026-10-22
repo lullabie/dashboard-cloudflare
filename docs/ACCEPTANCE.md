@@ -1,6 +1,6 @@
 # Dashboard acceptance registry
 
-Updated: 2026-10-22 (post-V15 notes). **This is the single acceptance
+Updated: 2026-10-23 (post-V16 notes). **This is the single acceptance
 registry.** Track D's `qa/v4/TEST-POINTS.md` is only a
 harness-to-TEST-ID map; it does not register status. Do not create a
 second registry elsewhere.
@@ -39,19 +39,19 @@ the test points above or to matrix-only cases owned by Track D.
 | localStorage upgrade and recovery | TEST-STORE-002, matrix legacy cases | PASS (TEST-STORE-002, TEST-STORE-005, V5-STORE-01, V5-STORE-02, V10-RECOVERY-01, V11-RECOVERY-02 in the same gate runs) |
 | Clean and malformed import/export; losing draft recoverable after failed download | TEST-UI-002, TEST-STORE-001 | PASS (TEST-UI-002c/d/e/f; conflict draft download in V5-STORE-02) |
 | Real-IndexedDB commit/abort/denial; two-tab conflicts; genuine concurrent first open | TEST-STORE-001..004 | PASS (TEST-STORE-001..005 and V13-PLACES-01 in the same gate runs) |
-| Every form: delayed commit, rejection, retained input, retry, duplicate click | TEST-UI-002 | NOT RUN — partial coverage only: the goal form passes rejection/retained-input/retry (TEST-UI-002a/b). Other forms and duplicate click have no executed case. |
-| Goals/habits midnight, DST and saved-zone matrix; legacy achievement; archive/restore; honest late/missing history | TEST-HABITS-001, matrix zone cases | NOT RUN — partial coverage only: TEST-HABITS-001 passes local-day create/remove/reload. The midnight/DST/zone matrix, legacy achievement and archive/restore have no executed case. |
-| Maps unique-ID CRUD | Matrix-only case | NOT RUN — place-ID repair at adoption is covered by V13-PLACES-01 and V5-STORE-01; a UI CRUD matrix case has not run. |
-| College markup stays text (no injected HTML) | Matrix-only case | NOT RUN |
-| Investments numeric round-trip | Matrix-only case | NOT RUN |
-| Populated explorers render real data | Matrix-only case | NOT RUN — TEST-UI-001 renders all views at boot; no dedicated populated-explorer case has run. |
+| Every form: delayed commit, rejection, retained input, retry, duplicate click | TEST-UI-002 | PASS — V16 note (2026-10-23): V16-FORM-01..07 execute the full lifecycle for goal, habit, place, job, investment and college forms plus two-tab held-modal conflicts, on frozen candidate `cfefa9a` (coordinator gate, Chromium 156.0.8078.4, runId `32de95bd`). Two defects found and repaired inside the matrix: habit name/title mismatch and investment duplicate-submit (record: `docs/review/V16-EXECUTION-RECORD.md`). |
+| Goals/habits midnight, DST and saved-zone matrix; legacy achievement; archive/restore; honest late/missing history | TEST-HABITS-001, matrix zone cases | PASS — V16 note (2026-10-23): V16-TIME-01..05 execute the pinned Toronto matrix on `cfefa9a` (same gate run): both sides of midnight, spring and fall DST, a different browser zone following pinned Toronto (no saved-zone setting exists — recorded as an observation), legacy achievement, archive/restore, honest late/missing history. The archive/restore case found and repaired the habits archive partition defect. |
+| Maps unique-ID CRUD | Matrix-only case | PASS — V16 note (2026-10-23): V16-CONTENT-01 on `cfefa9a` (same gate run): UI create/edit/delete with unique, stable IDs across reloads. |
+| College markup stays text (no injected HTML) | Matrix-only case | PASS — V16 note (2026-10-23): V16-CONTENT-02 on `cfefa9a` (same gate run): markup entered through the real form stays literal, stored verbatim, no element created. |
+| Investments numeric round-trip | Matrix-only case | PASS — V16 note (2026-10-23): V16-CONTENT-03 on `cfefa9a` (same gate run): zero, decimal and large values exact through save, reload, export and reimport. |
+| Populated explorers render real data | Matrix-only case | PASS — V16 note (2026-10-23): V16-CONTENT-04/05 on `cfefa9a` (same gate run): populated Jobs and Investments explorers filter and sort as labelled; record opening is proven through the card Edit path (the chart explorer has no row-click navigation). |
 | Feed reload, ordering and cross-tab conflict | TEST-FEEDS-001..003 | PASS (frozen `4883425`; Codex rerun at `1696d37`) |
-| Keyboard-operable import control | TEST-UI-002 | NOT RUN — partial coverage only: keyboard focus order and return pass (TEST-UI-002g); no isolated keyboard import-control case has run. |
-| Nested modal focus, Escape, focus return | TEST-UI-002 | NOT RUN — partial coverage only: focus order and focus return pass (TEST-UI-002g); nested modal and Escape have no isolated case. |
+| Keyboard-operable import control | TEST-UI-002 | PASS — V16 note (2026-10-23): V16-ACCESS-01 on `cfefa9a` (same gate run): a full import completed keyboard-only. |
+| Nested modal focus, Escape, focus return | TEST-UI-002 | PASS — V16 note (2026-10-23): V16-ACCESS-02 on `cfefa9a` (same gate run): nested News Sources modal stack; one Escape closes only the top layer and returns focus to the parent. The case found and repaired the whole-stack Escape defect. |
 | Viewports 320x568 and 375px | TEST-UI-002 | PASS (TEST-UI-002h/i) |
 | Reduced motion | TEST-UI-002 | PASS (TEST-UI-002j) |
-| Chart CDN unavailable/offline fallback | Matrix-only case | NOT RUN |
-| Exact release asset manifest | Packaging check (Track E script) | NOT RUN |
+| Chart CDN unavailable/offline fallback | Matrix-only case | PASS — V16 note (2026-10-23): Chart.js is bundled locally (`js/chart.umd.js`), not CDN-loaded. V16-OFFLINE-01/02 on `cfefa9a` (same gate run): with all outside requests blocked the charts render from the bundle; with the library request aborted the app shows the honest unavailable state and other views keep working. |
+| Exact release asset manifest | Packaging check (Track E script) | PASS as a local packaging check — V16 note (2026-10-23): on `cfefa9a` the checker passes and `--stage` produces exactly 21 files with every local reference resolved (also V16-OFFLINE-03, staged-folder smoke). This is not a release approval; no release tree or owner acceptance exists. |
 | Zero LICENSE changes | Packaging check + patch review | Verified at branch level 2026-10-22: `git diff 29d43ff..1696d37 -- LICENSE` is empty. |
 
 ## Remaining complete-app acceptance gaps (post-V14B, 2026-10-22)
@@ -98,6 +98,19 @@ claim:
 11. **Release approval: none.** The shippable claim withdrawn on
     2026-10-20 stays withdrawn. No merge and no deployment are
     authorized by any result recorded here.
+
+V16 closing note (2026-10-23): gaps 2–10 above are closed locally
+on frozen candidate `cfefa9a` — coordinator gate PASS (56 required
+browser cases including the 23 new V16 cases, 19/19 Node files,
+negative 17/17, runId `32de95bd`; record
+`docs/review/V16-EXECUTION-RECORD.md`; evidence
+`docs/review/evidence/v16/`). The V16 matrix found four app
+defects (nested-modal Escape, habits archive partition, habit
+name/title mismatch, investment duplicate submit); all four were
+repaired in bounded one-file lanes inside the same candidate.
+Codex reruns the candidate on installed Chrome. Gaps 1 (host
+acceptance) and 11 (release approval) remain open and still
+block any complete-app or shippable claim.
 
 ## Unresolved host requirements (not acceptance failures — unscoped)
 

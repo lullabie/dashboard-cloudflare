@@ -1,24 +1,26 @@
 # Dashboard project status
 
-Updated: 2026-10-22 (post-V15). Authority for current state. Supersedes
-the post-V14B status below, which is retained as the V14B section.
+Updated: 2026-10-23 (post-V16). Authority for current state. Supersedes
+the post-V15 status below, which is retained as the V15 section.
 
 ## Current state
 
 - Stack: vanilla JavaScript ES modules, no build step. IndexedDB
   tracked-snapshot store (`js/store.js`), BroadcastChannel cross-tab
-  updates, static hosting. Chart.js loads from CDN with an offline
-  fallback requirement (acceptance gate, see docs/ACCEPTANCE.md).
+  updates, static hosting. Chart.js is bundled locally
+  (`js/chart.umd.js`); its offline behavior is executed in V16
+  (see docs/ACCEPTANCE.md).
 - Repository: `lullabie/dashboard-cloudflare`, public, MIT LICENSE.
   Base commit: `29d43ff04a6abb257b5046c85f2fcba6f0bb679d` (main).
 - Review branch: `codex/v5-review`, head
-  `7883921607c27f308af33c383fab74ce58371fa7` (V15 candidate). Draft
+  `cfefa9af327a83174d38c38fe27556c3685a4294` (V16 candidate; the
+  docs bundle on top of it carries this status). Draft
   PR #2 tracks it. Main is unchanged; nothing is merged or deployed.
 - A stale candidate branch `bulk-phase-20261019` exists; its release
   claim was withdrawn on 2026-10-20. It is evidence, not a candidate.
 - The app ships empty of personal data. All test data is invented.
 - Zero LICENSE changes on the review branch: `git diff
-  29d43ff..7883921 -- LICENSE` is empty (checked 2026-10-22).
+  29d43ff..cfefa9a -- LICENSE` is empty (checked 2026-10-23).
 
 ## V14B state (current)
 
@@ -51,7 +53,34 @@ the post-V14B status below, which is retained as the V14B section.
   fallback, isolated keyboard/modal cases, and the asset-manifest
   packaging check.
 
-## V15 state (current)
+## V16 state (current)
+
+- Frozen candidate: `cfefa9af327a83174d38c38fe27556c3685a4294`
+  (parent `3f257bc`). Complete-app local acceptance: four new
+  matrix specs (forms, Toronto time, content, accessibility/
+  offline; 23 cases, all registered required), four bounded
+  `js/main.js` repairs the matrix found (nested-modal Escape,
+  habits archive partition, habit title contract, investment
+  duplicate-submit guard), one Lane B spec correction. Record:
+  `docs/review/V16-EXECUTION-RECORD.md`.
+- Codex independently accepted V15B at `3f257bc` before V16
+  (exit 0, 33 required Chrome PASS, runId `606f3b8c`).
+- Local gate on the frozen V16 candidate (sandbox Chromium
+  156.0.8078.4, Node v24.20.0): PASS — 56 required browser cases
+  (57 total), 19/19 Node lane-test files, negative 17/17,
+  exact staging PASS (21 files), runId `32de95bd`. Evidence:
+  `docs/review/evidence/v16/`.
+- Current js/main.js SHA-256
+  `43316e7b84100416e6fd12496d47fb5c484568bd50fb6a958eb30efe8eaae7e6`.
+  js/store.js and js/feeds.js are unchanged from V15.
+- Codex independent rerun of `cfefa9a` on installed Chrome:
+  pending. Host acceptance: NOT RUN. No release approval; the
+  withdrawn shippable claim stays withdrawn. The pages.yml
+  replacement remains a patch only (`docs/review/V15-PAGES-WORKFLOW.patch`
+  applies cleanly in check-only mode; the branch file is
+  unchanged, GitHub API 403).
+
+## V15 state (superseded by V16 above)
 
 - Frozen candidate: `7883921607c27f308af33c383fab74ce58371fa7`
   (assembled locally as `3ef0e08`, verified byte-identical). Repairs
