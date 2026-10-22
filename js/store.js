@@ -177,6 +177,25 @@ function normalizeImportData(data) {
 //    quarantined entries. Unknown extras keys are merged, never
 //    replaced. getData() never filters: the partition happens once,
 //    at adoption, and the record itself carries the recovery data.
+// 4. Place ids are repaired at the same adoption boundary (V13).
+//    The existing migratePlaces runs on the partitioned places: an
+//    entry whose id fails isValidId, or repeats an id already seen,
+//    gets a minted id, exactly as at import. A place without a valid
+//    id cannot be edited or deleted (consumers match by id), so an
+//    unrepaired adoption turns an edit into a create. Each replaced
+//    id is recorded as provenance { path:'places', index, value }
+//    with the original object, merged like any quarantine entry.
+//    Because every adoption repairs before any snapshot exists, a
+//    getData() snapshot never carries a malformed place id; and a
+//    snapshot minted before a later adoption repair holds the
+//    pre-adoption generation/revision token, so saveData's CAS
+//    rejects it instead of letting it overwrite the repaired state.
+//    A repair an adoption performs is persisted exactly once: at
+//    initial load inside the init transaction; at BroadcastChannel
+//    or conflict adoption through a guarded write that lands only
+//    when the disk record is still the adopted record (same
+//    generation and revision, both kept), so repaired ids stay
+//    stable across reloads and no newer record is clobbered.
 const TOP_LEVEL_COLLECTIONS = ['goals', 'places', 'jobs', 'investments', 'habits', 'indicators'];
 const COLLEGE_COLLECTIONS = ['timetable', 'assignments', 'exams', 'fees'];
 const NEWS_COLLECTIONS = ['sources', 'cache', 'manual'];
@@ -194,7 +213,7 @@ function isAdoptableEntry(entry, path) {
     return true;
 }
 
-function partitionCollection(value, path, found) {
+function partitionCollection(value, path, found, keptIndices) {
     if (value === undefined) return [];
     if (!Array.isArray(value)) {
         found.push({ path, index: -1, value });
@@ -202,7 +221,10 @@ function partitionCollection(value, path, found) {
     }
     const out = [];
     for (let i = 0; i < value.length; i++) {
-        if (isAdoptableEntry(value[i], path)) out.push(value[i]);
+        if (isAdoptableEntry(value[i], path)) {
+            out.push(value[i]);
+            if (keptIndices) keptIndices.push(i);
+        }
         else found.push({ path, index: i, value: value[i] === undefined ? null : value[i] });
     }
     return out;
@@ -240,15 +262,27 @@ function mergeQuarantine(prior, found) {
     return out;
 }
 
-// Returns { data, quarantine, changed }. The input record is not mutated.
+// Returns { data, quarantine, changed, placeIdRepairs }. The input
+// record is not mutated.
 function partitionAdoptedData(rawData, priorQuarantine) {
     const found = [];
     if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
         if (rawData !== undefined) found.push({ path: 'data', index: -1, value: rawData });
-        return { data: defaultData(), quarantine: mergeQuarantine(priorQuarantine, found), changed: true };
+        return { data: defaultData(), quarantine: mergeQuarantine(priorQuarantine, found), changed: true, placeIdRepairs: 0 };
     }
     const data = { ...rawData };
-    for (const k of TOP_LEVEL_COLLECTIONS) data[k] = partitionCollection(rawData[k], k, found);
+    let placeIdRepairs = 0;
+    for (const k of TOP_LEVEL_COLLECTIONS) {
+        if (k === 'places') {
+            const kept = [];
+            data.places = partitionCollection(rawData.places, 'places', found, kept);
+            const rep = repairAdoptedPlaceIds(data.places, kept, found);
+            data.places = rep.places;
+            placeIdRepairs = rep.repairs;
+        } else {
+            data[k] = partitionCollection(rawData[k], k, found);
+        }
+    }
     data.college = partitionCollectionGroup(rawData.college, 'college', COLLEGE_COLLECTIONS, found);
     data.news = partitionCollectionGroup(rawData.news, 'news', NEWS_COLLECTIONS, found);
     if (data.metadata === undefined) {
@@ -257,7 +291,7 @@ function partitionAdoptedData(rawData, priorQuarantine) {
         found.push({ path: 'metadata', index: -1, value: data.metadata });
         data.metadata = {};
     }
-    return { data, quarantine: mergeQuarantine(priorQuarantine, found), changed: found.length > 0 };
+    return { data, quarantine: mergeQuarantine(priorQuarantine, found), changed: found.length > 0, placeIdRepairs };
 }
 
 function recordExtras(record) {
@@ -276,6 +310,30 @@ function repairAdoptedRecord(record) {
     const extras = { ...extrasIn };
     if (part.quarantine.length) extras.quarantine = part.quarantine;
     return { ...record, data: part.data, envelopeExtras: extras };
+}
+
+// --- V13: place-ID repair at adoption ----------------------------
+// migratePlaces also runs at adoption (see policy point 4), not only
+// at legacy init and import. The migration mutates entries in place,
+// so it runs on shallow copies: the adopted record's own objects stay
+// untouched (export partitions a borrowed disk record read-only),
+// and the copies hold the pre-migration values for provenance. Each
+// entry whose id was replaced is recorded in the quarantine as
+// { path:'places', index:<raw index>, value:<original object> }.
+// Returns { places, repairs }: repairs counts the replaced ids, so
+// the adoption funnel can tell a content repair from a clean adopt.
+function repairAdoptedPlaceIds(places, keptIndices, found) {
+    const originals = places.map((p) => ({ ...p }));
+    const repaired = places.map((p) => ({ ...p }));
+    if (!migratePlaces({ places: repaired })) return { places, repairs: 0 };
+    let repairs = 0;
+    for (let i = 0; i < repaired.length; i++) {
+        if (repaired[i].id !== originals[i].id) {
+            found.push({ path: 'places', index: keptIndices ? keptIndices[i] : i, value: originals[i] });
+            repairs++;
+        }
+    }
+    return { places: repaired, repairs };
 }
 
 // --- F-B1a retained: legacy null/duplicate place-ID migration ----
@@ -307,6 +365,62 @@ export function getData() {
     return snapshot;
 }
 
+// V13: persist a place-ID repair that an adoption just performed.
+// Initial-load adoption is already durable (initStore puts the
+// repaired record inside its own transaction, and this path then
+// finds nothing to repair). BroadcastChannel and conflict adoption
+// have no transaction of their own, so without this write the disk
+// record would keep the malformed ids and the next reload would
+// mint different ones. The write is guarded and exactly-once: it
+// re-reads the record inside a readwrite transaction and writes the
+// adopted partition only when the disk record is still the exact
+// record that was adopted (same generation and revision). A newer
+// writer's record is never clobbered; that writer's own adoption
+// governs its repair. Generation and revision are kept: the repair
+// restores the adopted record's own content, it is not a new user
+// revision, and every holder of that token already holds repaired
+// data. The write cannot loop: any later adoption of the repaired
+// record finds valid ids and performs no repair, so no second
+// write fires. Persistence is best-effort; the in-memory repair
+// stands even if this write fails.
+function persistAdoptionRepair(adoptedRecord, repairedData, repairedExtras) {
+    (async () => {
+        let wrote = false;
+        try {
+            const db = await openDB();
+            await new Promise((resolve) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const getReq = store.get(RECORD_ID);
+                getReq.onsuccess = () => {
+                    const disk = getReq.result;
+                    if (!disk || disk.generation !== adoptedRecord.generation || disk.revision !== adoptedRecord.revision) {
+                        return; // Superseded: write nothing.
+                    }
+                    store.put({ ...disk, data: repairedData, envelopeExtras: repairedExtras });
+                    wrote = true;
+                };
+                getReq.onerror = () => {};
+                tx.oncomplete = () => { db.close(); resolve(); };
+                tx.onabort = tx.onerror = () => { db.close(); resolve(); };
+            });
+        } catch (e) {
+            console.warn('Adoption repair persistence failed:', e);
+        }
+        if (wrote) {
+            try {
+                if (typeof BroadcastChannel !== 'undefined') {
+                    const bc = new BroadcastChannel('dashboard_store_sync');
+                    bc.postMessage('sync');
+                    bc.close();
+                }
+            } catch (notifyErr) {
+                console.warn('Repair persisted, but cross-tab notification failed:', notifyErr);
+            }
+        }
+    })();
+}
+
 function syncFromRecord(record) {
     // V10 Lane A: every adoption path funnels through here, so the
     // partition is applied exactly once per adoption. The quarantine
@@ -320,6 +434,11 @@ function syncFromRecord(record) {
     const extras = { ...extrasIn };
     if (part.quarantine.length) extras.quarantine = part.quarantine;
     envelopeExtras = extras;
+    // V13: a place-ID repair must become durable exactly once, or a
+    // reload re-mints different ids. See persistAdoptionRepair.
+    if (part.placeIdRepairs > 0) {
+        persistAdoptionRepair(record, part.data, extras);
+    }
 }
 
 export async function initStore() {
