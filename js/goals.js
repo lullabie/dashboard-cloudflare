@@ -16,6 +16,7 @@ export function saveGoal(goalData) {
         const index = data.goals.findIndex(g => g.id === goalData.id);
         if (index !== -1) {
             const existing = data.goals[index];
+            if (!Array.isArray(existing.history)) existing.history = [];
             // Immutable history: append edit event
             existing.history.push({
                 type: 'EDIT',
@@ -60,6 +61,7 @@ export function toggleArchive(goalId) {
     const data = getData();
     const goal = data.goals.find(g => g.id === goalId);
     if (goal) {
+        if (!Array.isArray(goal.history)) goal.history = [];
         const newStatus = goal.status === 'active' ? 'archived' : 'active';
         goal.history.push({
             type: 'STATUS_CHANGE',
@@ -107,6 +109,7 @@ export function cycleOccurrence(goalId, dateStr) {
         goal.occurrences[dateStr] = nextStatus;
     }
 
+    if (!Array.isArray(goal.history)) goal.history = [];
     goal.history.push({
         type: 'OCCURRENCE_CHANGE',
         timestamp: new Date().toISOString(),
@@ -167,7 +170,11 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     const manualCheckIns = Array.isArray(goal.checkIns) ? goal.checkIns.length : (typeof goal.checkIns === 'number' ? goal.checkIns : 0);
     const doneDays = Object.values(occurrences).filter(status => status === 'done').length + manualCheckIns;
 
-    const target = goal.target || 1;
+    // V15 contract: target is untrusted (an import can carry any
+    // value, including a markup string). Coerce to a finite positive
+    // number before display or arithmetic; never render the raw value.
+    const targetNum = Number(goal.target);
+    const target = Number.isFinite(targetNum) && targetNum > 0 ? targetNum : 1;
     const progress = Math.min(100, Math.round((doneDays / target) * 100));
     
     const todayStr = getLocalDateString(new Date());
@@ -196,7 +203,10 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
         const d = new Date(todayStr + 'T12:00:00Z');
         d.setUTCDate(d.getUTCDate() - i);
         const dateStr = d.toISOString().split('T')[0];
-        const status = occurrences[dateStr] || 'none';
+        // Closed enum: an imported occurrence value is untrusted and
+        // lands in a title attribute below; only known states pass.
+        const rawStatus = occurrences[dateStr];
+        const status = (rawStatus === 'done' || rawStatus === 'missed' || rawStatus === 'late') ? rawStatus : 'none';
         
         let bgColor = 'var(--surface-hover)'; // default 'none'
         if (status === 'done') bgColor = 'var(--accent-color)';
@@ -270,8 +280,8 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
 
 // Utility to prevent XSS in our plain vanilla JS app
 function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
          .replace(/>/g, "&gt;")

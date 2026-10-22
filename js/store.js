@@ -161,8 +161,9 @@ function normalizeImportData(data) {
 //    save/import conflict adoption). Each collection is partitioned
 //    with the import entry-shape predicate: an entry is valid only
 //    when it is a non-null, non-array object. Jobs entries must also
-//    satisfy the strict import invariant (truthy id and truthy
-//    title) via the shared isValidJobEntry predicate, so an
+//    satisfy the strict import invariant (truthy id and an
+//    identifying field: company, role, or legacy title) via the
+//    shared isValidJobEntry predicate, so an
 //    adoption-repaired backup stays importable. Valid entries keep
 //    their order and are the only entries in the getData() snapshot.
 // 2. Nothing is dropped. Each malformed entry is preserved as
@@ -221,15 +222,41 @@ const COLLEGE_COLLECTIONS = ['timetable', 'assignments', 'exams', 'fees'];
 const NEWS_COLLECTIONS = ['sources', 'cache', 'manual'];
 
 // The one per-entry invariant beyond object shape in the strict
-// import contract: a jobs entry must carry a truthy id and a truthy
-// title. Shared by validateImportData and the adoption partition.
+// import contract (V15): a jobs entry must carry a truthy id and at
+// least one identifying field from the actual producer model — the
+// Jobs form and card use company and role; older exports used title.
+// (The pre-V15 invariant required title, which the actual form never
+// produces, so every form-created job failed adoption after reload.)
+// An entry with an id but no identifying field is not a record the
+// app can render or edit: import rejects it and adoption quarantines
+// it. Shared by validateImportData and the adoption partition, so an
+// adoption-repaired backup stays importable.
 function isValidJobEntry(entry) {
-    return !!entry.id && !!entry.title;
+    return !!entry.id && !!(entry.company || entry.role || entry.title);
+}
+
+// Goals and habits (V15): eligibility is shape-only. A non-null,
+// non-array object entry is adoptable and importable as-is, even
+// when a field is malformed (a non-numeric goal target, an invalid
+// habit createdAt). Field-level malformation is retained verbatim —
+// never quarantined, never rewritten at this layer — and renderers
+// own the safe presentation (text-only values, numeric coercion,
+// safe date states). Only shape failures leave the collection, and
+// they go to quarantine, so no entry is silently lost. The full
+// contract is docs/review/V15-CONTRACT.md.
+function isValidGoalEntry(entry) {
+    return !!entry && typeof entry === 'object' && !Array.isArray(entry);
+}
+
+function isValidHabitEntry(entry) {
+    return !!entry && typeof entry === 'object' && !Array.isArray(entry);
 }
 
 function isAdoptableEntry(entry, path) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
     if (path === 'jobs') return isValidJobEntry(entry);
+    if (path === 'goals') return isValidGoalEntry(entry);
+    if (path === 'habits') return isValidHabitEntry(entry);
     return true;
 }
 

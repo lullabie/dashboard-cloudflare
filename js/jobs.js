@@ -40,17 +40,22 @@ export function createJobCard(job, onEdit, onDelete) {
     header.style.alignItems = 'flex-start';
     const titleContainer = document.createElement('div');
     const companyEl = document.createElement('h3');
-    companyEl.textContent = job.company;
+    companyEl.textContent = job.company || job.title || '';
     companyEl.style.marginBottom = '0.25rem';
     const roleEl = document.createElement('div');
-    roleEl.textContent = job.role;
+    roleEl.textContent = job.role || '';
     roleEl.style.color = 'var(--text-secondary)';
     roleEl.style.fontSize = '0.875rem';
     roleEl.style.marginBottom = '0.5rem';
     titleContainer.appendChild(companyEl);
     titleContainer.appendChild(roleEl);
     const statusBadge = document.createElement('span');
-    statusBadge.textContent = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+    // V15 contract review: fields are carried verbatim, so a legacy or
+    // malformed entry can reach the card with a missing or non-string
+    // status. Render an honest Unknown; never mutate the original.
+    statusBadge.textContent = (typeof job.status === 'string' && job.status)
+        ? job.status.charAt(0).toUpperCase() + job.status.slice(1)
+        : 'Unknown';
     statusBadge.style.fontSize = '0.75rem';
     statusBadge.style.padding = '0.125rem 0.375rem';
     statusBadge.style.borderRadius = 'var(--radius-sm)';
@@ -78,7 +83,7 @@ export function createJobCard(job, onEdit, onDelete) {
     btnDelete.style.padding = '0.25rem 0.5rem';
     btnDelete.style.fontSize = '0.75rem';
     btnDelete.style.color = 'var(--danger-color)';
-    btnDelete.addEventListener('click', () => { if(confirm('Delete job application at ' + job.company + '?')) { onDelete(job.id); } });
+    btnDelete.addEventListener('click', () => { if(confirm('Delete job application at ' + (job.company || job.title || 'this company') + '?')) { onDelete(job.id); } });
     actionsEl.appendChild(btnEdit);
     actionsEl.appendChild(btnDelete);
     header.appendChild(actionsEl);

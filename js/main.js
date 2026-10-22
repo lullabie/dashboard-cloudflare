@@ -416,6 +416,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnImportTrigger.addEventListener('click', () => importFileInput.click());
     }
 
+    // --- V15 stale-modal guard -------------------------------------
+    // A full-record modal captures a baseline snapshot of the record
+    // when it opens. At submit, the current record is compared with
+    // the baseline: if another tab (or a cross-tab sync) changed or
+    // deleted the record meanwhile, the submit is blocked with an
+    // explicit conflict message and the modal stays open with the
+    // draft intact. Without this, a stale form silently attaches to
+    // the fresh record: the save merges the form over the current
+    // record, so fields the user never re-touched revert to the
+    // values from when the modal opened (Codex V15, defect 2).
+    const modalBaselines = new Map();
+    function captureModalBaseline(kind, record) {
+        modalBaselines.set(kind, record ? JSON.stringify(record) : null);
+    }
+    function clearModalBaseline(kind) {
+        modalBaselines.delete(kind);
+    }
+    function modalBaselineConflict(kind, id, currentRecords) {
+        if (!modalBaselines.has(kind)) return false;
+        const base = modalBaselines.get(kind);
+        if (base === null || !id) return false; // create form: no baseline record
+        const current = (currentRecords || []).find(r => r && r.id === id);
+        if (!current) return true; // deleted meanwhile
+        return JSON.stringify(current) !== base;
+    }
+    function staleModalBlock(kind, id, currentRecords, label) {
+        if (!modalBaselineConflict(kind, id, currentRecords)) return false;
+        alert('This ' + label + ' changed in another tab while you were editing. Your draft is still in the form and nothing was saved. Close the form to discard the draft, or reopen the record to see the current values.');
+        return true;
+    }
+
     // --- Goal Modal Operations ---
     function openModal(goal = null) {
         if (goal) {
@@ -430,11 +461,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             goalForm.reset();
             goalIdInput.value = '';
         }
+        captureModalBaseline('goal', goal);
         openDialog('goal-modal');
         goalTitleInput.focus();
     }
 
     function closeModal() {
+        clearModalBaseline('goal');
         closeDialog('goal-modal');
         goalForm.reset();
     }
@@ -452,6 +485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotes: goalShowNotesInput.checked
         };
         
+        if (staleModalBlock('goal', goalData.id, getGoals(), 'goal')) return;
         await runMutation(saveGoal(goalData), () => { closeModal(); refreshUI(); });
     });
 
@@ -470,11 +504,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             placeIdInput.value = '';
             placeColorInput.value = '#a3e635';
         }
+        captureModalBaseline('place', place);
         openDialog('place-modal');
         placeNameInput.focus();
     }
 
     function closePlaceModal() {
+        clearModalBaseline('place');
         closeDialog('place-modal');
         placeForm.reset();
     }
@@ -496,11 +532,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             jobIdInput.value = '';
             jobDateInput.value = '';
         }
+        captureModalBaseline('job', job);
         openDialog('job-modal');
         jobCompanyInput.focus();
     }
 
     function closeJobModal() {
+        clearModalBaseline('job');
         closeDialog('job-modal');
         jobForm.reset();
     }
@@ -530,6 +568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             })(),
             notes: jobNotesInput.value.trim()
         };
+        if (staleModalBlock('job', jobData.id, getJobs(), 'job application')) return;
         await runMutation(saveJob(jobData), () => { closeJobModal(); refreshUI(); });
     });
 
@@ -551,11 +590,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             investmentForm.reset();
             investmentIdInput.value = '';
         }
+        captureModalBaseline('investment', investment);
         openDialog('investment-modal');
         investmentTickerInput.focus();
     }
 
     function closeInvestmentModal() {
+        clearModalBaseline('investment');
         closeDialog('investment-modal');
         investmentForm.reset();
     }
@@ -572,6 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             current: parseFloat(investmentCurrentInput.value),
             notes: investmentNotesInput.value.trim()
         };
+        if (staleModalBlock('investment', investmentData.id, getInvestments(), 'investment')) return;
         await runMutation(saveInvestment(investmentData), () => { closeInvestmentModal(); refreshUI(); });
     });
 
@@ -584,6 +626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             id: habitIdInput.value || null,
             name: habitNameInput.value
         };
+        if (staleModalBlock('habit', habitData.id, getHabits(), 'habit')) return;
         await runMutation(saveHabit(habitData), () => { closeHabitModal(); refreshUI(); });
     });
 
@@ -790,11 +833,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             habitForm.reset();
             habitIdInput.value = '';
         }
+        captureModalBaseline('habit', habit);
         openDialog('habit-modal');
         habitNameInput.focus();
     }
     
     function closeHabitModal() {
+        clearModalBaseline('habit');
         closeDialog('habit-modal');
         habitForm.reset();
         habitIdInput.value = '';
@@ -822,6 +867,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             color: placeColorInput.value.trim() || '#a3e635'
         };
         
+        if (staleModalBlock('place', placeData.id, getPlaces(), 'place')) return;
         await runMutation(savePlace(placeData), () => { closePlaceModal(); refreshUI(); });
     });
     

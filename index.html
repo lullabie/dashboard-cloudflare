@@ -34,13 +34,10 @@
             
             <h2>Indicators</h2>
             
-    <details open style="margin-bottom: 1rem;">
-        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Indicators Chart</summary>
-        <div style="position: relative; height: 300px; width: 100%;">
-            <canvas id="indicators-chart"></canvas>
-        </div>
-        <div class="sr-only" id="indicators-chart-alt" tabindex="0">Line chart showing FX trends over time.</div>
-    </details>
+    <!-- V15: the indicators chart panel was removed. No renderer ever
+         drew on its canvas and its alt text claimed FX trends that the
+         app does not hold (indicators carry current values, no
+         history). The indicator cards below are the honest state. -->
             <div id="indicators-container" class="grid-container"></div>
             
             <div id="progress-summary-root"></div>

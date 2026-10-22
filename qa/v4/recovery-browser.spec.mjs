@@ -8,7 +8,7 @@
 // the partitioned data with its quarantine, and must import cleanly).
 // V12 extends V11-RECOVERY-02 phase 1 with malformed-object jobs: entries
 // that are objects but fail the strict import contract for jobs (one
-// missing title, one missing id). Adoption must partition those entries
+// no identifying field, one missing id). Adoption must partition those entries
 // to quarantine with their original objects, exactly like null entries,
 // so the exported backup stays round-trippable.
 // No store mocks. The spec serves a
@@ -359,18 +359,21 @@ function assertQuarantineExact(parsed, expected, label) {
 const P1_GOAL = { id: 'goal_qa_v11_p1', title: 'Invented Phase One Goal', status: 'active', history: [] };
 const P1_JOB_1 = { id: 'job_qa_v11_p1_one', title: 'Invented Phase One Job One', company: 'Invented Co One', status: 'applied', location: 'toronto' };
 const P1_JOB_2 = { id: 'job_qa_v11_p1_two', title: 'Invented Phase One Job Two', company: 'Invented Co Two', status: 'applied', location: 'toronto' };
-// V12 malformed-object jobs. Each entry is a non-null, non-array object,
-// so the V10/V11 shape-only partition kept it. Each entry fails the
-// strict import contract for jobs (id and title are both required).
-const P1_JOB_NO_TITLE = { id: 'job_qa_v12_missing_title', company: 'Invented Co No Title', status: 'applied', location: 'toronto' };
+// V12 malformed-object jobs, updated to the V15 contract. Each entry
+// is a non-null, non-array object, so the V10/V11 shape-only partition
+// kept it. Each entry fails the strict import contract for jobs: the
+// first has an id but no identifying field (no company, role, or
+// title — the pre-V15 fixture carried a company, which the V15
+// contract makes a valid producer-shaped entry); the second has no id.
+const P1_JOB_NO_IDENTITY = { id: 'job_qa_v15_no_identity', status: 'applied', location: 'toronto' };
 const P1_JOB_NO_ID = { title: 'Invented Phase One Job No Id', company: 'Invented Co No Id', status: 'applied', location: 'toronto' };
 const P1_UNRELATED_PLACE_ID = 'place_qa_v12_unrelated';
 // Phase 1 poisoned jobs, by original index: 0 valid neighbour one,
-// 1 null, 2 object missing title, 3 object missing id, 4 valid
+// 1 null, 2 object with no identifying field, 3 object missing id, 4 valid
 // neighbour two. The expected quarantine is the full set, in order.
 const P1_EXPECTED_QUARANTINE = [
   { path: 'jobs', index: 1, value: null },
-  { path: 'jobs', index: 2, value: P1_JOB_NO_TITLE },
+  { path: 'jobs', index: 2, value: P1_JOB_NO_IDENTITY },
   { path: 'jobs', index: 3, value: P1_JOB_NO_ID },
 ];
 const P2_GOAL_D1 = { id: 'goal_qa_v11_p2_d1', title: 'Invented Phase Two Goal D1', status: 'active', history: [] };
@@ -550,7 +553,7 @@ await group('V10-RECOVERY-01', async () => {
 // the record through the sync channel. An export taken before any save and
 // before any re-init must carry the partitioned data with the matching
 // quarantine. That exact export must import into a clean context. V12
-// adds malformed-object jobs to the phase 1 poison (missing title,
+// adds malformed-object jobs to the phase 1 poison (no identifying field,
 // missing id), an unrelated save in the import context, and a re-import
 // of the second export.
 // Phase 2: the disk record is newer than the page cache and no sync
@@ -592,12 +595,12 @@ await group('V11-RECOVERY-02', async () => {
     // --- Phase 1, step 3: poison the disk record, then notify page A. ---
     // A foreign writer puts three malformed entries between the two
     // valid jobs and increments the revision: a null entry at index 1,
-    // an object missing title at index 2, and an object missing id at
+    // an object with no identifying field at index 2, and an object missing id at
     // index 3. No other collection changes.
     const diskBefore = await page1.evaluate(rawReadRecordInPage);
     assert.ok(diskBefore, 'phase 1: no durable record exists after the seed save');
     const poisoned = JSON.parse(JSON.stringify(diskBefore));
-    poisoned.data.jobs = [poisoned.data.jobs[0], null, P1_JOB_NO_TITLE, P1_JOB_NO_ID, poisoned.data.jobs[1]];
+    poisoned.data.jobs = [poisoned.data.jobs[0], null, P1_JOB_NO_IDENTITY, P1_JOB_NO_ID, poisoned.data.jobs[1]];
     poisoned.revision = diskBefore.revision + 1;
     poisoned.savedAt = new Date().toISOString();
     await page1.evaluate(rawWriteRecordInPage, poisoned);
@@ -641,7 +644,7 @@ await group('V11-RECOVERY-02', async () => {
     // --- Phase 1, step 4: export before any save and before any re-init. ---
     // The quarantine in the export envelope is the adopted quarantine. The
     // adoption policy puts exactly three entries there, in order: jobs
-    // index 1 null, index 2 the object missing title, and index 3 the
+    // index 1 null, index 2 the object with no identifying field, and index 3 the
     // object missing id, each with its original value.
     const export1 = await exportCapture(page1);
     try {
@@ -862,7 +865,7 @@ await group('V11-RECOVERY-02', async () => {
     }
 
     assert.equal(defects.length, 0, defects.join(' || '));
-    return 'export before any save or re-init carried the partitioned neighbours in order with exactly three quarantine entries (jobs[1]=null, jobs[2]=object missing title, jobs[3]=object missing id, each with its original value) and imported with committed:true into a clean context, where the data and the quarantine survived an unrelated save, reload and a second export, and the second export re-imported with committed:true into a third clean context; with the disk record newer than the page cache and no sync notification, the export carried the newer disk dataset D2 partitioned with its quarantine (goals[0]=null), not the cached D1';
+    return 'export before any save or re-init carried the partitioned neighbours in order with exactly three quarantine entries (jobs[1]=null, jobs[2]=object with no identifying field, jobs[3]=object missing id, each with its original value) and imported with committed:true into a clean context, where the data and the quarantine survived an unrelated save, reload and a second export, and the second export re-imported with committed:true into a third clean context; with the disk record newer than the page cache and no sync notification, the export carried the newer disk dataset D2 partitioned with its quarantine (goals[0]=null), not the cached D1';
   } finally {
     for (const context of contexts) await context.close();
   }

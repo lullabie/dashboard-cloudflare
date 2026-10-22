@@ -75,6 +75,7 @@ export async function saveHabit(habitData) {
             throw new Error("Habit not found");
         }
         
+        if (!Array.isArray(targetHabit.history)) targetHabit.history = [];
         targetHabit.history.push({
             type: 'EDIT',
             timestamp: new Date().toISOString(),
@@ -115,6 +116,7 @@ export async function toggleArchive(habitId) {
     if (!habit) throw new Error("Habit not found");
 
     const newStatus = habit.status === 'active' ? 'archived' : 'active';
+    if (!Array.isArray(habit.history)) habit.history = [];
     habit.history.push({
         type: 'STATUS_CHANGE',
         timestamp: new Date().toISOString(),
@@ -140,9 +142,13 @@ export async function toggleCheckin(habitId, dateStr) {
     if (!habit) throw new Error("Habit not found");
 
     // creationDatePart should be local zone to compare apple-to-apple with dateStr
-    const creationLocal = new Intl.DateTimeFormat('en-CA', { 
-        timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' 
-    }).format(new Date(habit.createdAt));
+    const createdDate = new Date(habit.createdAt);
+    if (isNaN(createdDate.getTime())) {
+        throw new Error("Habit has an invalid creation date");
+    }
+    const creationLocal = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(createdDate);
 
     if (dateStr < creationLocal) {
         throw new Error("Cannot check in before habit creation");
@@ -173,6 +179,7 @@ export async function toggleCheckin(habitId, dateStr) {
         habit.occurrences[dateStr] = nextVal;
     }
 
+    if (!Array.isArray(habit.history)) habit.history = [];
     habit.history.push({
         type: 'CHECKIN_TOGGLE',
         timestamp: new Date().toISOString(),
@@ -187,18 +194,27 @@ export async function toggleCheckin(habitId, dateStr) {
 }
 
 function getActiveDaysCount(habit, startDateStr, endDateStr) {
-    // Collect all status transitions
-    const creationLocal = new Intl.DateTimeFormat('en-CA', { 
-        timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' 
-    }).format(new Date(habit.createdAt));
+    // Collect all status transitions. V15 contract: an invalid
+    // createdAt or history timestamp is a safe state, never a throw
+    // (Intl.DateTimeFormat.format on an Invalid Date raises
+    // RangeError). Callers guard createdAt before calling; history
+    // entries with unparseable timestamps are skipped.
+    const createdDate = new Date(habit.createdAt);
+    if (isNaN(createdDate.getTime())) return 0;
+    const creationLocal = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(createdDate);
 
     let statusLog = [{ date: creationLocal, status: 'active' }];
-    if (habit.history) {
+    if (Array.isArray(habit.history)) {
         habit.history.forEach(h => {
+            if (!h || typeof h !== 'object') return;
             if (h.type === 'STATUS_CHANGE') {
-                const logLocal = new Intl.DateTimeFormat('en-CA', { 
-                    timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' 
-                }).format(new Date(h.timestamp));
+                const ts = new Date(h.timestamp);
+                if (isNaN(ts.getTime())) return;
+                const logLocal = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
+                }).format(ts);
                 statusLog.push({ date: logLocal, status: h.to });
             }
         });
@@ -231,13 +247,18 @@ function getActiveDaysCount(habit, startDateStr, endDateStr) {
 }
 
 function calculateMetrics(habit) {
-    if (!habit.createdAt) {
+    // V15 contract: a missing OR invalid createdAt (an import can
+    // carry any string) yields the unknown-eligibility safe state.
+    // Formatting an Invalid Date throws RangeError, which crashed
+    // createHabitCard on a malformed imported habit (Codex V15).
+    const createdDate = habit.createdAt ? new Date(habit.createdAt) : null;
+    if (!createdDate || isNaN(createdDate.getTime())) {
         return { done: 0, late: 0, eligible: 'UNKNOWN', rate: 0 };
     }
 
-    const creationLocal = new Intl.DateTimeFormat('en-CA', { 
-        timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' 
-    }).format(new Date(habit.createdAt));
+    const creationLocal = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(createdDate);
 
     const todayLocal = new Intl.DateTimeFormat('en-CA', { 
         timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' 
@@ -272,8 +293,8 @@ function calculateMetrics(habit) {
 }
 
 function escapeHtml(unsafe) {
-    if (!unsafe || typeof unsafe !== 'string') return '';
-    return unsafe
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
          .replace(/>/g, "&gt;")

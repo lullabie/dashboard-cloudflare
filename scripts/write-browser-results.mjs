@@ -49,6 +49,7 @@ export const REQUIRED_BROWSER_IDS = [
   'V10-RECOVERY-01',
   'V11-RECOVERY-02',
   'V13-PLACES-01',
+  'V15-AUDIT-01', 'V15-AUDIT-02', 'V15-AUDIT-03', 'V15-AUDIT-04', 'V15-AUDIT-05',
 ];
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
