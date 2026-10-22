@@ -341,15 +341,13 @@ export function createNewsCard(item, isManual, onDelete) {
     titleEl.textContent = item.title;
     titleEl.style.marginBottom = '0.5rem';
     
-    const linkEl = document.createElement('a');
+    const linkEl = (item.url && isValidUrl(item.url)) ? document.createElement('a') : document.createElement('span');
     if (item.url && isValidUrl(item.url)) {
         linkEl.href = item.url;
-    } else {
-        linkEl.href = 'javascript:void(0)';
+        linkEl.target = '_blank';
+        linkEl.rel = 'noopener noreferrer';
     }
     linkEl.textContent = 'View article';
-    linkEl.target = '_blank';
-    linkEl.rel = 'noopener noreferrer';
     linkEl.style.color = 'var(--accent-color)';
     linkEl.style.fontSize = '0.875rem';
     linkEl.style.textDecoration = 'none';
