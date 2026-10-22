@@ -12,7 +12,7 @@
 // Exit 0: every check behaved as required. Exit 1: a check failed.
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync, cpSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, cpSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,7 @@ import {
   validateBrowserResults,
   writeBrowserResults,
 } from './write-browser-results.mjs';
+import { resolveBrowserSelection } from '../qa/v4/browser-launch.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNNER = join(HERE, 'run-review-tests.mjs');
@@ -144,6 +145,35 @@ function runRunner(tree) {
   const dir = scratchTree({ withSpec: 'good' });
   const { status, out } = runRunner(dir);
   check('complete-run-passes-e2e', status === 0 && out.includes('[LOCAL GATE] PASS'), `exit ${status}; ${out.split('\n').find((l) => l.includes('LOCAL GATE')) ?? 'no gate line'}`);
+}
+
+// --- Browser-selection checks (V9: Chromium-family helper) ---
+{
+  const rejected = ['firefox', 'opera'].map((value) => {
+    try { resolveBrowserSelection({ QA_BROWSER: value }); return false; }
+    catch { return true; }
+  });
+  check('browser-selection-rejects-unsupported', rejected.every(Boolean),
+    'QA_BROWSER=firefox and QA_BROWSER=opera both throw; no fallback selection is returned');
+}
+{
+  const chrome = resolveBrowserSelection({ QA_BROWSER: 'Chrome' });
+  const brave = resolveBrowserSelection({ QA_BROWSER: ' brave ' });
+  const chromium = resolveBrowserSelection({});
+  const override = resolveBrowserSelection({ QA_BROWSER: 'chrome', QA_BROWSER_EXECUTABLE_PATH: '/opt/browsers/chrome' });
+  const alias = resolveBrowserSelection({ QA_BROWSER: 'brave', QA_BROWSER_EXECUTABLE: '/opt/browsers/brave' });
+  const ok = chrome.kind === 'chrome' && brave.kind === 'brave' && chromium.kind === 'chromium'
+    && chromium.executablePath === null
+    && override.executablePath === '/opt/browsers/chrome' && alias.executablePath === '/opt/browsers/brave';
+  check('browser-selection-accepts-supported', ok,
+    `chrome=${chrome.kind}, brave=${brave.kind}, default=${chromium.kind}, override=${override.executablePath}, alias=${alias.executablePath}`);
+}
+{
+  const files = ['browser-launch.mjs', 'ui-browser.spec.mjs', 'storage-browser.spec.mjs', 'feeds-browser.spec.mjs', 'jobs-browser.spec.mjs']
+    .map((name) => join(HERE, '..', 'qa', 'v4', name));
+  const offenders = files.filter((f) => /firefox/i.test(readFileSync(f, 'utf8')));
+  check('no-legacy-browser-references', offenders.length === 0,
+    offenders.length === 0 ? 'helper and all four specs contain no legacy browser reference' : `legacy reference remains in: ${offenders.join(', ')}`);
 }
 
 const failed = results.filter((r) => !r.ok);
