@@ -1,38 +1,54 @@
-// feeds-browser.spec.mjs — Lane D FEEDS browser QA, dashboard v5.
-// Run: node qa/v4/feeds-browser.spec.mjs
+// feeds-browser.spec.mjs — Lane D FEEDS browser QA, dashboard v6.
+// Run: node qa/v4/feeds-browser.spec.mjs [--tree <path>]
+//        [--results-out <path>]
 //
 // Real-browser cases for the feeds lane. Each case runs in Firefox through
-// Playwright against the assembled app served from a local temporary origin.
-// Feed responses come from a fixture server in this file. Timing is controlled
+// Playwright against the app served from a local temporary origin. Feed
+// responses come from a fixture server in this file. Timing is controlled
 // by server-side barriers, not by sleeps alone. Data is invented only.
 //
-// App under test: the v4 assembly tree plus the selected v4 STORE and FEEDS
-// post-images, staged into a scratch copy under /tmp. The assembly tree and
-// the production sources are never edited by this file.
+// Tree under test: --tree, else QA_TREE_ROOT, else DASH_TREE, else the
+// checkout that contains this spec (qa/v4/ -> repo root, two levels up).
+// The spec serves that tree as-is. It applies no patch, substitutes no
+// source, and pins no hash. It reads and reports the actual js/store.js
+// and js/feeds.js SHA-256 of the tested tree. Any FAIL or NOT RUN case
+// makes the process exit nonzero. Results are written as JSON next to
+// this spec (browser-results.json) unless --results-out or
+// QA_RESULTS_OUT names another path. Lane E's schema supersedes it.
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import http from 'node:http';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { writeBrowserResults } from '../../scripts/write-browser-results.mjs';
+// Repo-local fixture builders (RSS, oversize, malformed).
+import { buildMalformedXml, buildOversizeBody, buildRssXml } from './feed-responses.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const argv = process.argv.slice(2);
+function argValue(name) {
+  const i = argv.indexOf(name);
+  return i >= 0 ? argv[i + 1] : null;
+}
+const TREE = path.resolve(
+  argValue('--tree') ?? process.env.QA_TREE_ROOT ?? process.env.DASH_TREE ??
+    path.resolve(here, '..', '..'),
+);
+
+function sha256File(file) {
+  return existsSync(file)
+    ? createHash('sha256').update(readFileSync(file)).digest('hex')
+    : 'MISSING';
+}
+const STORE_SHA256 = sha256File(path.join(TREE, 'js', 'store.js'));
+const FEEDS_SHA256 = sha256File(path.join(TREE, 'js', 'feeds.js'));
 
 export const SOURCE_SNAPSHOT_LABEL =
-  'REAL-BROWSER — app: v4 assembly tree (base 29d43ff04a6abb257b5046c85f2fcba6f0bb679d) staged in /tmp with selected STORE patch 777d74ceddcc8bf76d3c3cfcb510d122a32820613bf490b16d05af0aeaecddc4 (store.js d613cf1890995fa09b56fd3f7cb3f2b0638b79098429b572dd74ec9ed501d6e4) and selected FEEDS patch 2b44a190e684736285921676f4b2c9761c76c0ab9b26032c09240831007b72ab (feeds.js aaa6ea7dbb0214c7a348e962779a65d5392bd5add8f4ae4867af52995a1334e9). Cases name the tested tree, not a frozen review commit.';
-
-const GOAL_DIR = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  '..', '..', '..',
-);
-const ASSEMBLY_TREE = path.join(GOAL_DIR, 'hidden_files', 'codex-v4-20261021', 'assembly', 'tree');
-const FEEDS_PATCH = path.join(GOAL_DIR, 'hidden_files', 'codex-v4-20261021', 'feeds-v4-completion-20261021.patch');
-const STORE_PATCH = path.join(GOAL_DIR, 'hidden_files', 'codex-v3-20261021', 'store-v3-completion-20261021-1147.patch');
-const HARNESS = path.join(GOAL_DIR, 'hidden_files', 'codex-v4-20261021', 'qa-v4', 'feed-responses.mjs');
-const EXPECTED_SHA256 = {
-  'js/feeds.js': 'aaa6ea7dbb0214c7a348e962779a65d5392bd5add8f4ae4867af52995a1334e9',
-  'js/store.js': 'd613cf1890995fa09b56fd3f7cb3f2b0638b79098429b572dd74ec9ed501d6e4',
-};
+  `REAL-BROWSER — tree under test: ${TREE}; js/store.js SHA-256 ${STORE_SHA256}; js/feeds.js SHA-256 ${FEEDS_SHA256}. Hashes are read from the tested tree at run time. No source is pinned or substituted.`;
 
 const CASE_IDS = ['TEST-FEEDS-001', 'TEST-FEEDS-002', 'TEST-FEEDS-003', 'V5-FEEDS-01', 'V5-FEEDS-02', 'V5-FEEDS-03'];
 const results = [];
@@ -47,6 +63,25 @@ function notRunAll(blocker) {
   summarize();
 }
 
+function emitResults() {
+  const out = process.env.QA_RESULTS_FILE ?? argValue('--results-out') ?? process.env.QA_RESULTS_OUT ??
+    path.join(here, 'browser-results.json');
+  try {
+    writeBrowserResults({
+      outFile: path.resolve(out),
+      tree: TREE,
+      testedCommit: process.env.QA_TESTED_COMMIT ?? 'working-tree',
+      runtime: process.env.QA_RUNTIME ?? `node ${process.version}`,
+      runId: process.env.QA_RUN_ID,
+      cases: results,
+    });
+    console.log(`Machine results written: ${out}`);
+  } catch (error) {
+    console.error(`Machine results NOT written: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
 function summarize() {
   const counts = results.reduce((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
@@ -54,87 +89,31 @@ function summarize() {
   }, {});
   console.log('');
   console.log(`Summary: PASS ${counts.PASS ?? 0}; NOT RUN ${counts['NOT RUN'] ?? 0}; FAIL ${counts.FAIL ?? 0}`);
-  console.log('Boundary rule: PASS here means the case ran in a real browser against the staged tree named in the source label.');
-  if ((counts.FAIL ?? 0) > 0) process.exitCode = 1;
+  console.log('Boundary rule: PASS here means the case ran in a real browser against the tree named in the source label.');
+  if ((counts.FAIL ?? 0) > 0 || (counts['NOT RUN'] ?? 0) > 0) process.exitCode = 1;
+  emitResults();
 }
 
-// --- Fixture builders. Reuse the v4 harness builders when present. ---
-
-function escapeXmlText(value) {
-  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-}
-
-function localBuildRss({ title = 'Example Feed', items = [] } = {}) {
-  const itemXml = items
-    .map((item) => `    <item>\n      <title>${escapeXmlText(item.title)}</title>\n      <link>${escapeXmlText(item.url)}</link>\n      <guid>${escapeXmlText(item.id)}</guid>\n      <pubDate>Wed, 21 Oct 2026 01:00:00 GMT</pubDate>\n      <description>${escapeXmlText(item.summary ?? '')}</description>\n    </item>`)
-    .join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0">\n  <channel>\n    <title>${escapeXmlText(title)}</title>\n    <link>https://example.com/</link>\n${itemXml}\n  </channel>\n</rss>\n`;
-}
-
-function localBuildOversize(minBytes = 1024 * 1024 + 1) {
-  const header = '<?xml version="1.0"?><rss><channel><title>Oversize Example</title><!--';
-  const footer = '--></channel></rss>';
-  return header + 'x'.repeat(Math.max(0, minBytes - header.length - footer.length)) + footer;
-}
-
-function localBuildMalformed() {
-  return '<?xml version="1.0"?><rss><channel><title>Broken Example</title><item><title>Missing close tags';
-}
-
-let buildRssXml = localBuildRss;
-let buildOversizeBody = localBuildOversize;
-let buildMalformedXml = localBuildMalformed;
-try {
-  const harness = await import(new URL(`file://${HARNESS}`).href);
-  buildRssXml = harness.buildRssXml;
-  buildOversizeBody = harness.buildOversizeBody;
-  buildMalformedXml = harness.buildMalformedXml;
-} catch {
-  // Harness file absent. Local builders above keep the same fixture shape.
-}
-
-// --- Post-image extraction. A patch post-image is its context plus added lines. ---
-
-function extractPostImage(patchText, targetPath) {
-  const lines = patchText.split('\n');
-  let inFile = false;
-  const out = [];
-  for (const line of lines) {
-    if (line.startsWith('diff --git ')) {
-      inFile = line.includes(` b/${targetPath}`);
-      continue;
-    }
-    if (!inFile) continue;
-    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('\\')) continue;
-    if (line.startsWith('@@')) continue;
-    if (line.startsWith('+')) out.push(line.slice(1));
-    else if (line.startsWith(' ')) out.push(line.slice(1));
-    else if (line.startsWith('-')) continue;
-  }
-  return out.join('\n') + '\n';
-}
-
-function sha256(text) {
-  return createHash('sha256').update(text, 'utf8').digest('hex');
-}
-
-// --- Playwright loading. Bare imports first, then known scratch installs. ---
+// --- Playwright loading. Documented route first: PLAYWRIGHT_MODULE, then
+// the pinned install declared in qa/v4/package.json (bare specifiers resolve
+// from qa/v4/node_modules). Scratch and cache paths are fallbacks only. ---
 
 async function loadPlaywright() {
-  const candidates = ['playwright', 'playwright-core'];
-  if (process.env.PLAYWRIGHT_MODULE) candidates.unshift(process.env.PLAYWRIGHT_MODULE);
-  candidates.push('/tmp/pwprobe/node_modules/playwright-core/index.mjs');
+  const candidates = [];
+  if (process.env.PLAYWRIGHT_MODULE) candidates.push(process.env.PLAYWRIGHT_MODULE);
+  candidates.push('playwright', 'playwright-core');
+  candidates.push(path.join(here, 'node_modules', 'playwright-core', 'index.mjs'));
   candidates.push(path.join(homedir(), 'workspace', 'skills', 'evidence-driven-testing', 'scripts', 'playwright', 'node_modules', 'playwright', 'index.mjs'));
   let lastError = null;
   for (const candidate of candidates) {
     try {
-      const mod = await import(candidate.startsWith('/') ? `file://${candidate}` : candidate);
+      const mod = await import(path.isAbsolute(candidate) ? pathToFileURL(candidate).href : candidate);
       if (mod.firefox) return mod;
     } catch (error) {
       lastError = error;
     }
   }
-  throw new Error(`no Playwright module resolved (last error: ${lastError?.message ?? 'none'}). Install with: npm install playwright-core, or set PLAYWRIGHT_MODULE to a module path.`);
+  throw new Error(`no Playwright module resolved (last error: ${lastError?.message ?? 'none'}). Documented setup: run "npm install" in qa/v4 (pinned playwright 1.64.1), then "npx playwright install firefox". Or set PLAYWRIGHT_MODULE to a module path.`);
 }
 
 function cachedFirefoxPath() {
@@ -254,7 +233,7 @@ function createFixtureServer(appDir) {
       return;
     }
 
-    // Static app files from the staged scratch tree.
+    // Static app files from the tree under test, served as-is.
     const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
     const filePath = path.join(appDir, relative);
     if (!filePath.startsWith(appDir)) {
@@ -275,23 +254,6 @@ function createFixtureServer(appDir) {
   });
 
   return { server, control };
-}
-
-// --- Staging. Copy the assembly tree to /tmp and overlay the selected sources. ---
-
-async function stageApp() {
-  const feedsImage = extractPostImage(await readFile(FEEDS_PATCH, 'utf8'), 'js/feeds.js');
-  const storeImage = extractPostImage(await readFile(STORE_PATCH, 'utf8'), 'js/store.js');
-  for (const [name, image] of [['js/feeds.js', feedsImage], ['js/store.js', storeImage]]) {
-    const digest = sha256(image);
-    assert.equal(digest, EXPECTED_SHA256[name], `post-image hash mismatch for ${name}: ${digest}`);
-  }
-  const appDir = await mkdtemp(path.join(tmpdir(), 'feeds-browser-app-'));
-  await cp(ASSEMBLY_TREE, appDir, { recursive: true, filter: (src) => !src.includes(`${path.sep}.git`) });
-  await mkdir(path.join(appDir, 'js'), { recursive: true });
-  await writeFile(path.join(appDir, 'js', 'feeds.js'), feedsImage);
-  await writeFile(path.join(appDir, 'js', 'store.js'), storeImage);
-  return appDir;
 }
 
 // --- Page helpers. Each tab imports the real modules and inits the real store. ---
@@ -741,25 +703,25 @@ try {
   playwright = await loadPlaywright();
 } catch (error) {
   notRunAll(error.message);
-  process.exit();
+  process.exit(1);
 }
 
 let browser;
 try {
   browser = await launchFirefox(playwright);
 } catch (error) {
-  notRunAll(`Firefox launch failed: ${error.message.split('\n')[0]}. A Playwright Firefox build under ~/.cache/ms-playwright is the accepted route.`);
-  process.exit();
+  notRunAll(`Firefox launch failed: ${error.message.split('\n')[0]}. Documented route: the pinned install in qa/v4/README.md. A cached Firefox build under ~/.cache/ms-playwright is a fallback only.`);
+  process.exit(1);
 }
 
-let appDir;
-try {
-  appDir = await stageApp();
-} catch (error) {
-  await browser.close();
-  notRunAll(`app staging failed: ${error.message}`);
-  process.exit();
+for (const required of ['index.html', path.join('js', 'feeds.js'), path.join('js', 'store.js')]) {
+  if (!existsSync(path.join(TREE, required))) {
+    await browser.close();
+    notRunAll(`tree under test lacks ${required}: ${TREE}`);
+    process.exit(1);
+  }
 }
+const appDir = TREE;
 
 const { server, control } = createFixtureServer(appDir);
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -774,5 +736,4 @@ await runCase('V5-FEEDS-03', () => caseV5Feeds03(browser, origin));
 
 await browser.close();
 server.close();
-await rm(appDir, { recursive: true, force: true });
 summarize();
