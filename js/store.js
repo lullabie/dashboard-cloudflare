@@ -536,11 +536,28 @@ export async function exportData() {
         record = await readRecord();
     } catch(e) {}
     
-    const dataToExport = record ? record.data : getData();
-    // V10 Lane A: merge the in-memory extras (which carry the current
-    // quarantine after a BroadcastChannel or conflict adoption) over the
-    // disk extras, so an export always shows the live recovery metadata.
-    const extras = record ? { ...(recordExtras(record) || {}), ...envelopeExtras } : envelopeExtras;
+    // V11: export uses one internally consistent selected record. The
+    // selected record is the disk record when one is readable. Partition
+    // that record as a unit. Pair the partitioned data with the extras of
+    // that same record only. Raw disk data can carry malformed entries
+    // that adoption already partitioned in memory. Pairing raw disk data
+    // with the in-memory quarantine made the backup fail strict import.
+    // Pairing in-memory data with disk extras can mix two revisions.
+    // Export is read-only. This path writes nothing to disk. The
+    // partition works on a copy. Export mutates no record and no cache.
+    // Fallback stays unchanged: no readable disk record exports the
+    // in-memory snapshot and the in-memory extras.
+    let dataToExport;
+    let extras;
+    if (record) {
+        const repaired = repairAdoptedRecord(record);
+        const selected = repaired || record;
+        dataToExport = selected.data;
+        extras = recordExtras(selected) || {};
+    } else {
+        dataToExport = getData();
+        extras = envelopeExtras;
+    }
     
     const envelope = {
         app: 'dashboard',
