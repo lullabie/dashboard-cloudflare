@@ -45,6 +45,7 @@ export const REQUIRED_BROWSER_IDS = [
   'TEST-HABITS-001',
   'V5-STORE-01', 'V5-STORE-02',
   'V5-FEEDS-01', 'V5-FEEDS-02', 'V5-FEEDS-03',
+  'V8-JOBS-OTHER',
 ];
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
