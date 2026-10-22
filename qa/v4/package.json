@@ -1,0 +1,9 @@
+{
+  "name": "dashboard-qa-v4",
+  "private": true,
+  "type": "module",
+  "description": "Browser QA specs for the dashboard. Test tooling only. Not part of the shipped app.",
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}
