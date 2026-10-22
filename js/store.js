@@ -95,7 +95,7 @@ function validateImportData(data) {
     assertRecordArray(data.jobs ?? [], 'jobs');
     const jobs = data.jobs ?? [];
     for (let i = 0; i < jobs.length; i++) {
-        if (!jobs[i].id || !jobs[i].title) {
+        if (!isValidJobEntry(jobs[i])) {
             throw new Error(`Invalid import: 'jobs[${i}]' missing required fields.`);
         }
     }
@@ -160,7 +160,10 @@ function normalizeImportData(data) {
 //    funnel (initial IndexedDB load, BroadcastChannel refresh,
 //    save/import conflict adoption). Each collection is partitioned
 //    with the import entry-shape predicate: an entry is valid only
-//    when it is a non-null, non-array object. Valid entries keep
+//    when it is a non-null, non-array object. Jobs entries must also
+//    satisfy the strict import invariant (truthy id and truthy
+//    title) via the shared isValidJobEntry predicate, so an
+//    adoption-repaired backup stays importable. Valid entries keep
 //    their order and are the only entries in the getData() snapshot.
 // 2. Nothing is dropped. Each malformed entry is preserved as
 //    { path, index, value } in envelopeExtras.quarantine; index -1
@@ -178,8 +181,17 @@ const TOP_LEVEL_COLLECTIONS = ['goals', 'places', 'jobs', 'investments', 'habits
 const COLLEGE_COLLECTIONS = ['timetable', 'assignments', 'exams', 'fees'];
 const NEWS_COLLECTIONS = ['sources', 'cache', 'manual'];
 
-function isAdoptableEntry(entry) {
-    return !!entry && typeof entry === 'object' && !Array.isArray(entry);
+// The one per-entry invariant beyond object shape in the strict
+// import contract: a jobs entry must carry a truthy id and a truthy
+// title. Shared by validateImportData and the adoption partition.
+function isValidJobEntry(entry) {
+    return !!entry.id && !!entry.title;
+}
+
+function isAdoptableEntry(entry, path) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    if (path === 'jobs') return isValidJobEntry(entry);
+    return true;
 }
 
 function partitionCollection(value, path, found) {
@@ -190,7 +202,7 @@ function partitionCollection(value, path, found) {
     }
     const out = [];
     for (let i = 0; i < value.length; i++) {
-        if (isAdoptableEntry(value[i])) out.push(value[i]);
+        if (isAdoptableEntry(value[i], path)) out.push(value[i]);
         else found.push({ path, index: i, value: value[i] === undefined ? null : value[i] });
     }
     return out;
