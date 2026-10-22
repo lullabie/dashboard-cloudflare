@@ -1,6 +1,6 @@
 # Dashboard acceptance registry
 
-Updated: 2026-10-22 (post-V14B audit). **This is the single acceptance
+Updated: 2026-10-22 (post-V15 notes). **This is the single acceptance
 registry.** Track D's `qa/v4/TEST-POINTS.md` is only a
 harness-to-TEST-ID map; it does not register status. Do not create a
 second registry elsewhere.
@@ -59,8 +59,14 @@ the test points above or to matrix-only cases owned by Track D.
 Local browser acceptance on the frozen assembled commit is complete
 for the cases in the registry above (coordinator gate at `4883425`;
 Codex independent rerun at `1696d37`, runId `efb3274d`). The V14B
-Chrome local regression is closed. The following gaps remain open
-and block any complete-app acceptance claim:
+Chrome local regression is closed. V15 note (2026-10-22): the frozen
+V15 candidate `7883921` also passes the local gate (33 required
+cases including the five new V15-AUDIT cases, runId `355b1fba`;
+record `docs/review/V15-EXECUTION-RECORD.md`), and the jobs form
+now has executed create/edit coverage inside V15-AUDIT-01/02 — the
+every-form matrix below still stands for the other forms. The
+following gaps remain open and block any complete-app acceptance
+claim:
 
 1. **Host acceptance: NOT RUN.** Hosted authentication, Cloudflare
    Workers/D1 behavior, Free CPU limits and unattended scheduled
@@ -79,9 +85,16 @@ and block any complete-app acceptance claim:
 8. **Chart CDN unavailable/offline fallback** — not run.
 9. **Keyboard-operable import control (isolated)** and **nested
    modal focus/Escape** — not run as isolated cases.
-10. **Exact release asset manifest packaging check** — not run. The
-    old GitHub Pages workflow (`.github/workflows/pages.yml`) remains
-    a named packaging gate until reviewed.
+10. **Exact release asset manifest packaging check** — not run as a
+    release gate. V15 progress: the checker is now exact (exclusions
+    first, exact staged set, dependency closure) and its `--stage`
+    run passes on the V15 frozen candidate (evidence:
+    `docs/review/evidence/v15/package-v15.txt`); no release tree or
+    owner acceptance exists. The old GitHub Pages workflow
+    (`.github/workflows/pages.yml`) remains a named packaging gate
+    until reviewed; a replacement is prepared at
+    `docs/review/V15-PAGES-WORKFLOW.patch` (the GitHub API returns
+    403 for the workflows path, so the branch file is unchanged).
 11. **Release approval: none.** The shippable claim withdrawn on
     2026-10-20 stays withdrawn. No merge and no deployment are
     authorized by any result recorded here.
