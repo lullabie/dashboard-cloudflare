@@ -1,38 +1,48 @@
-// storage-browser.spec.mjs — Lane D-STORAGE, dashboard v5 browser QA.
-// Run: node qa/v4/storage-browser.spec.mjs
-//
+// storage-browser.spec.mjs — Lane D-STORAGE, dashboard v6 browser QA.
+// Run: node qa/v4/storage-browser.spec.mjs [--tree <path>]
+//        [--results-out <path>]
 // Real-browser storage cases for js/store.js. No store mocks. The spec serves
 // a static tree from a local temporary origin, opens Firefox with an isolated
 // context per case, and drives the real store module in the page. IndexedDB,
 // BroadcastChannel and localStorage are the native browser APIs.
 //
-// Tree under test: QA_TREE_ROOT, default the v4 assembly tree. The header
-// prints the tree path and the js/store.js SHA-256 so every result names the
-// exact source it ran against. Cases target the selected v4 store source
-// (LF SHA-256 d613cf1890995fa09b56fd3f7cb3f2b0638b79098429b572dd74ec9ed501d6e4).
-// Run this spec only against a tree that carries that source.
+// Tree under test: QA_TREE_ROOT, else --tree, else DASH_TREE, else the
+// checkout that contains this spec (qa/v4/ -> repo root, two levels up).
+// The header prints the tree path and the actual js/store.js and js/feeds.js
+// SHA-256 read from that tree. No source hash is pinned. No source is
+// substituted.
 //
-// Playwright resolution order: QA_PLAYWRIGHT_CORE path, bare "playwright-core"
-// or "playwright" import, the Python Playwright driver package, the npx cache.
-// If no driver loads, every case reports NOT RUN with the blocker and the
-// process exits 1. A NOT RUN run never reports success.
+// Playwright resolution order: QA_PLAYWRIGHT_CORE or PLAYWRIGHT_MODULE path,
+// bare "playwright-core" or "playwright" import (the documented pinned
+// install in qa/v4/README.md), then fallbacks only: the Python Playwright
+// driver package, the npx cache. If no driver loads or Firefox does not
+// launch, every case reports NOT RUN with the blocker and the process exits
+// 1. A NOT RUN run never reports success. Results are written as JSON next
+// to this spec (browser-results.json) unless --results-out or
+// QA_RESULTS_OUT names another path. Lane E's schema supersedes that file.
 //
 // Invented records only. No personal data.
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { writeBrowserResults } from '../../scripts/write-browser-results.mjs';
 
-const TREE_ROOT =
-  process.env.QA_TREE_ROOT ??
-  path.join(
-    os.homedir(),
-    'workspace/goals/personal-life-dashboard/hidden_files/codex-v4-20261021/assembly/tree',
-  );
+const here = path.dirname(fileURLToPath(import.meta.url));
+const argv = process.argv.slice(2);
+function argValue(name) {
+  const i = argv.indexOf(name);
+  return i >= 0 ? argv[i + 1] : null;
+}
+const TREE_ROOT = path.resolve(
+  process.env.QA_TREE_ROOT ?? argValue('--tree') ?? process.env.DASH_TREE ??
+    path.resolve(here, '..', '..'),
+);
 
 const CASE_IDS = [
   'TEST-STORE-001',
@@ -83,7 +93,7 @@ async function loadFirefox() {
   const errors = [];
   for (const candidate of candidates) {
     try {
-      const mod = await import(candidate.startsWith('/') ? `${candidate.replace(/\/$/, '')}/index.mjs` : candidate).catch(
+      const mod = await import(path.isAbsolute(candidate) ? pathToFileURL(path.join(candidate.replace(/[\\/]$/, ''), 'index.mjs')).href : candidate).catch(
         async () => {
           const require = createRequire(import.meta.url);
           return require(candidate);
@@ -210,8 +220,32 @@ const storePath = path.join(TREE_ROOT, 'js', 'store.js');
 const storeSha = existsSync(storePath)
   ? createHash('sha256').update(readFileSync(storePath)).digest('hex')
   : 'MISSING';
+const feedsPath = path.join(TREE_ROOT, 'js', 'feeds.js');
+const feedsSha = existsSync(feedsPath)
+  ? createHash('sha256').update(readFileSync(feedsPath)).digest('hex')
+  : 'MISSING';
 console.log(`Tree under test: ${TREE_ROOT}`);
 console.log(`js/store.js SHA-256: ${storeSha}`);
+console.log(`js/feeds.js SHA-256: ${feedsSha}`);
+
+function emitResults() {
+  const out = process.env.QA_RESULTS_FILE ?? argValue('--results-out') ?? process.env.QA_RESULTS_OUT ??
+    path.join(here, 'browser-results.json');
+  try {
+    writeBrowserResults({
+      outFile: path.resolve(out),
+      tree: TREE_ROOT,
+      testedCommit: process.env.QA_TESTED_COMMIT ?? 'working-tree',
+      runtime: process.env.QA_RUNTIME ?? `node ${process.version}`,
+      runId: process.env.QA_RUN_ID,
+      cases: results,
+    });
+    console.log(`Machine results written: ${out}`);
+  } catch (error) {
+    console.error(`Machine results NOT written: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
 
 let firefox;
 try {
@@ -220,12 +254,23 @@ try {
   console.log(`Driver blocker: ${error.message}`);
   for (const id of CASE_IDS) record(id, 'REAL-BROWSER', 'NOT RUN', `Missing precondition: ${error.message}`);
   console.log('Summary: PASS 0; NOT RUN 6; FAIL 0');
+  emitResults();
   process.exit(1);
 }
 
 const { server, origin } = await startServer(TREE_ROOT);
 console.log(`Local temporary origin: ${origin}`);
-const browser = await firefox.launch({ headless: true });
+let browser;
+try {
+  browser = await firefox.launch({ headless: true });
+} catch (error) {
+  console.log(`Browser launch blocker: ${error.message.split('\n')[0]}`);
+  for (const id of CASE_IDS) record(id, 'REAL-BROWSER', 'NOT RUN', `Missing precondition: Firefox launch failed: ${error.message.split('\n')[0]}`);
+  console.log('Summary: PASS 0; NOT RUN 6; FAIL 0');
+  emitResults();
+  server.close();
+  process.exit(1);
+}
 console.log(`Browser: Firefox ${browser.version()}`);
 console.log('');
 
@@ -536,4 +581,5 @@ const counts = results.reduce((acc, r) => {
 console.log('');
 console.log(`Summary: PASS ${counts.PASS ?? 0}; NOT RUN ${counts['NOT RUN'] ?? 0}; FAIL ${counts.FAIL ?? 0}`);
 console.log('Boundary rule: PASS here means the case ran in a real Firefox profile against the native IndexedDB, BroadcastChannel and localStorage of the tree named in the header.');
-if ((counts.FAIL ?? 0) > 0) process.exitCode = 1;
+if ((counts.FAIL ?? 0) > 0 || (counts['NOT RUN'] ?? 0) > 0) process.exitCode = 1;
+emitResults();
