@@ -152,6 +152,120 @@ function normalizeImportData(data) {
     return out;
 }
 
+// --- V10 Lane A: bounded adoption partition -----------------------
+// Policy. A stored record is untrusted at adoption time: a foreign or
+// older writer can leave malformed entries (null, primitives, arrays)
+// inside a collection, and verbatim adoption crashes the UI.
+// 1. Partition at adoption. syncFromRecord is the single adoption
+//    funnel (initial IndexedDB load, BroadcastChannel refresh,
+//    save/import conflict adoption). Each collection is partitioned
+//    with the import entry-shape predicate: an entry is valid only
+//    when it is a non-null, non-array object. Valid entries keep
+//    their order and are the only entries in the getData() snapshot.
+// 2. Nothing is dropped. Each malformed entry is preserved as
+//    { path, index, value } in envelopeExtras.quarantine; index -1
+//    means the collection value itself was malformed and is treated
+//    as empty. A malformed root record recovers to the default empty
+//    dataset with the raw value quarantined at path 'data'.
+// 3. The quarantine travels with the record. Adoption on initial
+//    load repairs the durable record in the same transaction, and
+//    every save merges the in-memory extras over the disk extras, so
+//    save, export, reload and conflict adoption never silently lose
+//    quarantined entries. Unknown extras keys are merged, never
+//    replaced. getData() never filters: the partition happens once,
+//    at adoption, and the record itself carries the recovery data.
+const TOP_LEVEL_COLLECTIONS = ['goals', 'places', 'jobs', 'investments', 'habits', 'indicators'];
+const COLLEGE_COLLECTIONS = ['timetable', 'assignments', 'exams', 'fees'];
+const NEWS_COLLECTIONS = ['sources', 'cache', 'manual'];
+
+function isAdoptableEntry(entry) {
+    return !!entry && typeof entry === 'object' && !Array.isArray(entry);
+}
+
+function partitionCollection(value, path, found) {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) {
+        found.push({ path, index: -1, value });
+        return [];
+    }
+    const out = [];
+    for (let i = 0; i < value.length; i++) {
+        if (isAdoptableEntry(value[i])) out.push(value[i]);
+        else found.push({ path, index: i, value: value[i] === undefined ? null : value[i] });
+    }
+    return out;
+}
+
+function partitionCollectionGroup(value, path, keys, found) {
+    const group = {};
+    if (value === undefined) {
+        for (const k of keys) group[k] = [];
+        return group;
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        found.push({ path, index: -1, value });
+        for (const k of keys) group[k] = [];
+        return group;
+    }
+    Object.assign(group, value);
+    for (const k of keys) group[k] = partitionCollection(value[k], path + '.' + k, found);
+    return group;
+}
+
+function quarantineKey(entry) {
+    let v;
+    try { v = JSON.stringify(entry && entry.value); } catch (e) { v = String(entry && entry.value); }
+    return (entry && entry.path) + '|' + (entry && entry.index) + '|' + v;
+}
+
+function mergeQuarantine(prior, found) {
+    const out = Array.isArray(prior) ? prior.slice() : [];
+    const seen = new Set(out.map(quarantineKey));
+    for (const entry of found) {
+        const key = quarantineKey(entry);
+        if (!seen.has(key)) { seen.add(key); out.push(entry); }
+    }
+    return out;
+}
+
+// Returns { data, quarantine, changed }. The input record is not mutated.
+function partitionAdoptedData(rawData, priorQuarantine) {
+    const found = [];
+    if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
+        if (rawData !== undefined) found.push({ path: 'data', index: -1, value: rawData });
+        return { data: defaultData(), quarantine: mergeQuarantine(priorQuarantine, found), changed: true };
+    }
+    const data = { ...rawData };
+    for (const k of TOP_LEVEL_COLLECTIONS) data[k] = partitionCollection(rawData[k], k, found);
+    data.college = partitionCollectionGroup(rawData.college, 'college', COLLEGE_COLLECTIONS, found);
+    data.news = partitionCollectionGroup(rawData.news, 'news', NEWS_COLLECTIONS, found);
+    if (data.metadata === undefined) {
+        data.metadata = {};
+    } else if (!data.metadata || typeof data.metadata !== 'object' || Array.isArray(data.metadata)) {
+        found.push({ path: 'metadata', index: -1, value: data.metadata });
+        data.metadata = {};
+    }
+    return { data, quarantine: mergeQuarantine(priorQuarantine, found), changed: found.length > 0 };
+}
+
+function recordExtras(record) {
+    return (record && record.envelopeExtras && typeof record.envelopeExtras === 'object' && !Array.isArray(record.envelopeExtras))
+        ? record.envelopeExtras : null;
+}
+
+// Returns a repaired copy of the record when adoption partitioned any
+// malformed content, else null. Used by initStore to make the durable
+// record match the partitioned in-memory adoption.
+function repairAdoptedRecord(record) {
+    if (!record || typeof record !== 'object') return null;
+    const extrasIn = recordExtras(record) || {};
+    const part = partitionAdoptedData(record.data, extrasIn.quarantine);
+    if (!part.changed) return null;
+    const extras = { ...extrasIn };
+    if (part.quarantine.length) extras.quarantine = part.quarantine;
+    return { ...record, data: part.data, envelopeExtras: extras };
+}
+
 // --- F-B1a retained: legacy null/duplicate place-ID migration ----
 function migratePlaces(data) {
     if (!data || !Array.isArray(data.places)) return false;
@@ -182,10 +296,18 @@ export function getData() {
 }
 
 function syncFromRecord(record) {
-    currentData = record.data;
+    // V10 Lane A: every adoption path funnels through here, so the
+    // partition is applied exactly once per adoption. The quarantine
+    // already carried by the record is preserved and extended, never
+    // replaced; unknown extras keys pass through unchanged.
+    const extrasIn = recordExtras(record) || envelopeExtras;
+    const part = partitionAdoptedData(record.data, extrasIn.quarantine);
+    currentData = part.data;
     currentRevision = record.revision;
     currentGeneration = record.generation;
-    if (record.envelopeExtras) envelopeExtras = record.envelopeExtras;
+    const extras = { ...extrasIn };
+    if (part.quarantine.length) extras.quarantine = part.quarantine;
+    envelopeExtras = extras;
 }
 
 export async function initStore() {
@@ -235,6 +357,17 @@ export async function initStore() {
                         envelopeExtras: legacyRecovery.length ? { legacyRecovery, legacyOriginalRaw: legacyRaw } : {}
                     };
                     store.put(adoptedRecord);
+                } else {
+                    // V10 Lane A: an existing record can carry malformed
+                    // entries from a foreign or older writer. Repair it in
+                    // this same transaction so the durable record matches
+                    // the partitioned adoption: malformed entries move to
+                    // envelopeExtras.quarantine instead of reaching the UI.
+                    const repaired = repairAdoptedRecord(adoptedRecord);
+                    if (repaired) {
+                        adoptedRecord = repaired;
+                        store.put(adoptedRecord);
+                    }
                 }
             };
             getReq.onerror = () => reject(getReq.error);
@@ -327,7 +460,13 @@ export async function saveData(data) {
                 ...record,
                 revision: record.revision + 1,
                 savedAt: new Date().toISOString(),
-                data: data
+                data: data,
+                // V10 Lane A: merge, never replace. The in-memory extras
+                // (seeded from this record at adoption and extended with
+                // any quarantine) win per key, so a save after a
+                // BroadcastChannel or conflict adoption cannot silently
+                // delete quarantined entries or unknown extras keys.
+                envelopeExtras: { ...(recordExtras(record) || {}), ...envelopeExtras }
             };
             store.put(nextRecord);
         };
@@ -398,7 +537,10 @@ export async function exportData() {
     } catch(e) {}
     
     const dataToExport = record ? record.data : getData();
-    const extras = record ? record.envelopeExtras : envelopeExtras;
+    // V10 Lane A: merge the in-memory extras (which carry the current
+    // quarantine after a BroadcastChannel or conflict adoption) over the
+    // disk extras, so an export always shows the live recovery metadata.
+    const extras = record ? { ...(recordExtras(record) || {}), ...envelopeExtras } : envelopeExtras;
     
     const envelope = {
         app: 'dashboard',
