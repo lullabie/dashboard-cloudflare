@@ -10,6 +10,20 @@ import { getHabits, saveHabit, toggleArchive as toggleHabitArchive, toggleChecki
 import { getPlaces, savePlace, deletePlace, getMapEmbedUrl, createPlaceElement } from './maps.js';
 import { getCollegeData, saveCollegeItem, deleteCollegeItem, createCollegeCard } from './college.js';
 import { getJobs, saveJob, deleteJob, createJobCard } from './jobs.js';
+
+export function isOtherJobStatus(status) {
+    return !['applied', 'interview', 'offer', 'rejected'].includes(status);
+}
+
+export function createChartJobFilterHandler(selectElement, refreshCallback) {
+    return function handleChartJobFilter(status) {
+        if (!['applied', 'interview', 'offer', 'rejected', 'other'].includes(status)) return;
+        if (selectElement.value === status) return;
+        selectElement.value = status;
+        refreshCallback();
+    };
+}
+
 import { getInvestments, saveInvestment, deleteInvestment, createInvestmentCard } from './investments.js';
 import { renderJobsChart, renderCollegeChart, renderInvestmentsChart } from './visuals/charts.js';
 import { renderChartExplorer, destroyChartExplorer } from './visuals/chart-explorer.js';
@@ -520,7 +534,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     jobStatusFilter.addEventListener('change', () => refreshUI());
-    const handleChartJobFilter = (status) => { if(jobStatusFilter.value !== status) { jobStatusFilter.value = status; refreshUI(); } };
+    const handleChartJobFilter = createChartJobFilterHandler(jobStatusFilter, refreshUI);
     jobLocationFilter.addEventListener('change', () => refreshUI());
 
     // --- Investment Modal Operations ---
@@ -976,7 +990,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const activeStatusFilter = jobStatusFilter.value;
         const activeLocationFilter = jobLocationFilter.value;
         let filteredJobs = allJobs;
-        if (activeStatusFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.status === activeStatusFilter); }
+        if (activeStatusFilter !== 'all') { filteredJobs = filteredJobs.filter(j => activeStatusFilter === 'other' ? isOtherJobStatus(j.status) : j.status === activeStatusFilter); }
         if (activeLocationFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.location === activeLocationFilter); }
         filteredJobs.sort((a, b) => new Date(b.date) - new Date(a.date));
         jobsContainer.replaceChildren();
