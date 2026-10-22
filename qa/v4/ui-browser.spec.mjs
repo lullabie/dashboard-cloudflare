@@ -11,7 +11,8 @@
 // --results-out or QA_RESULTS_OUT names another path.
 //
 // This spec serves the assembled tree from a local temporary origin and drives
-// it in a real Firefox browser through Playwright. Each browser context is an
+// it in a real Chromium-family browser (Chrome/Brave/Chromium via
+// QA_BROWSER) through Playwright. Each browser context is an
 // isolated profile. Test data is invented in this file. No case uses mocks of
 // the app. A case reports PASS, FAIL, or NOT RUN. NOT RUN means a named
 // precondition was missing. PASS here means the case ran in a real browser.
@@ -24,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { writeBrowserResults } from '../../scripts/write-browser-results.mjs';
+import { launchSelectedBrowser } from './browser-launch.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -39,6 +41,15 @@ const ONLY = (argValue('--cases') ?? '').split(',').map((s) => s.trim()).filter(
 const QA_OUT = process.env.QA_OUT ?? mkdtempSync(path.join(os.tmpdir(), 'ui-browser-qa-'));
 mkdirSync(QA_OUT, { recursive: true });
 const TAG = String(Date.now()).slice(-6);
+let browserInfo = null;
+const attemptedKind = String(process.env.QA_BROWSER ?? 'chromium').trim().toLowerCase() || 'chromium';
+function currentRuntime() {
+  const base = process.env.QA_RUNTIME ?? `node ${process.version}`;
+  return browserInfo
+    ? `${base}; browser ${browserInfo.actualName} ${browserInfo.version} (QA_BROWSER=${browserInfo.selection.kind})`
+    : `${base}; browser ${attemptedKind} not launched`;
+}
+
 
 // ---------------------------------------------------------------------------
 // Harness record keeping. The line format matches acceptance.spec.mjs.
@@ -93,7 +104,7 @@ function emitResults() {
       outFile: path.resolve(out),
       tree: TREE,
       testedCommit: process.env.QA_TESTED_COMMIT ?? 'working-tree',
-      runtime: process.env.QA_RUNTIME ?? `node ${process.version}`,
+      runtime: currentRuntime(),
       runId: process.env.QA_RUN_ID,
       cases: results,
     });
@@ -140,53 +151,22 @@ await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const ORIGIN = `http://127.0.0.1:${server.address().port}`;
 
 // ---------------------------------------------------------------------------
-// Playwright resolution. The spec needs the playwright or playwright-core
-// package and the Firefox browser build. A missing package or browser makes
-// every case NOT RUN with the exact blocker.
+// Browser launch. The shared helper resolves the Chromium-family selection
+// (QA_BROWSER=chrome|brave|chromium, default chromium; executable override
+// QA_BROWSER_EXECUTABLE_PATH) and launches it through Playwright. There is
+// no fallback: a missing package, an unsupported selection, or a failed
+// launch makes every case NOT RUN with the exact blocker.
 // ---------------------------------------------------------------------------
-let pw = null;
-const pwErrors = [];
-async function importModule(spec) {
-  const isPath = path.isAbsolute(spec) || spec.endsWith('.mjs') || spec.endsWith('.js');
-  return import(isPath ? pathToFileURL(spec).href : spec);
-}
-for (const name of [process.env.PLAYWRIGHT_MODULE, 'playwright', 'playwright-core'].filter(Boolean)) {
-  try {
-    pw = await importModule(name);
-    if (pw?.firefox) break;
-    pwErrors.push(`${name}: loaded but exposes no firefox launcher`);
-    pw = null;
-  } catch (error) {
-    pwErrors.push(`${name}: ${error?.code ?? error.message}`);
-  }
-}
 let browser = null;
 let browserNote = '';
-if (pw) {
-  try {
-    browser = await pw.firefox.launch();
-    browserNote = 'firefox launched from the Playwright browser cache';
-  } catch (firstError) {
-    // Fallback only: a cached Firefox binary when the registry lookup fails.
-    // The documented route is the pinned install in qa/v4/README.md.
-    const cacheRoot = path.join(os.homedir(), '.cache', 'ms-playwright');
-    const candidates = existsSync(cacheRoot)
-      ? readdirSync(cacheRoot)
-          .filter((d) => d.startsWith('firefox-'))
-          .map((d) => path.join(cacheRoot, d, 'firefox', 'firefox'))
-          .filter((p) => existsSync(p))
-      : [];
-    for (const exe of candidates) {
-      try {
-        browser = await pw.firefox.launch({ executablePath: exe });
-        browserNote = `firefox launched from ${exe}`;
-        break;
-      } catch { /* try the next candidate */ }
-    }
-    if (!browser) pwErrors.push(`firefox launch: ${firstError.message.split('\n')[0]}`);
-  }
+let launchError = null;
+try {
+  browserInfo = await launchSelectedBrowser();
+  browser = browserInfo.browser;
+  browserNote = browserInfo.launchNote;
+} catch (error) {
+  launchError = error;
 }
-
 // ---------------------------------------------------------------------------
 // Page helpers. Collectors record page errors, console errors, failed module
 // requests, dialogs, and downloads for later assertions.
@@ -220,12 +200,31 @@ function watchPage(page) {
     entry.action = 'accept';
     await dialog.accept().catch(() => {});
   });
-  page.on('download', async (download) => {
+  page.on('download', (download) => {
     const target = path.join(QA_OUT, `${Date.now()}-${download.suggestedFilename()}`);
-    await download.saveAs(target).catch(() => {});
-    state.downloads.push({ name: download.suggestedFilename(), path: target });
+    const entry = { name: download.suggestedFilename(), path: target, done: false, error: null, saved: null };
+    state.downloads.push(entry);
+    entry.saved = download.saveAs(target)
+      .then(() => { entry.done = true; })
+      .catch((error) => { entry.error = error; });
   });
   return state;
+}
+
+// Wait (bounded) for download entries from fromIndex to exist and complete.
+// A stored saveAs error is thrown, so the case fails with the real cause.
+async function awaitDownloads(state, fromIndex, timeoutMs = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const entries = state.downloads.slice(fromIndex);
+    if (entries.length > 0 && entries.every((e) => e.done || e.error)) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  const entries = state.downloads.slice(fromIndex);
+  if (entries.length === 0) throw new Error(`awaitDownloads: no download arrived within ${timeoutMs} ms`);
+  const failed = entries.find((e) => e.error);
+  if (failed) throw failed.error;
+  if (entries.some((e) => !e.done)) throw new Error(`awaitDownloads: download did not complete within ${timeoutMs} ms`);
 }
 
 async function gotoApp(page, state) {
@@ -303,12 +302,12 @@ async function waitForDialogCount(state, fromIndex, count, timeoutMs = 12000) {
 // Cases. A missing browser makes every selected case NOT RUN.
 // ---------------------------------------------------------------------------
 if (!browser) {
-  const blocker = pwErrors.join('; ') || 'unknown launch failure';
+  const blocker = launchError ? `${launchError.message.split('\n')[0]}. Documented route: the pinned install in qa/v4/README.md.` : 'unknown launch failure';
   for (const id of [
     'TEST-UI-001', 'TEST-UI-002a', 'TEST-UI-002b', 'TEST-UI-002c', 'TEST-UI-002d',
     'TEST-UI-002e', 'TEST-UI-002f', 'TEST-UI-002g', 'TEST-UI-002h', 'TEST-UI-002i',
     'TEST-UI-002j', 'V5-STORE-02', 'TEST-HABITS-001',
-  ]) notRun(id, `Playwright Firefox unavailable — ${blocker}`);
+  ]) notRun(id, `Playwright browser unavailable — ${blocker}`);
 } else {
   console.log(`Browser: ${browserNote}`);
   console.log('');
@@ -351,6 +350,7 @@ if (!browser) {
         await new Promise((r) => setTimeout(r, 100));
       }
       assert.ok(stateA.downloads.length > before, 'export click produced no download');
+      await awaitDownloads(stateA, before);
       exportFile = stateA.downloads[stateA.downloads.length - 1].path;
       const parsed = JSON.parse(readFileSync(exportFile, 'utf8'));
       assert.equal(parsed.app, 'dashboard');
@@ -383,6 +383,7 @@ if (!browser) {
       // Release the confirm. The import must now hit the conflict path.
       stateA.holdConfirm = false;
       stateA.held = null;
+      const recoveryDownloadEvent = pageA.waitForEvent('download', { timeout: 15000 });
       held.entry.action = 'accept';
       await held.dialog.accept();
       const dialogs = await waitForDialogCount(stateA, dialogFrom, 2);
@@ -391,6 +392,8 @@ if (!browser) {
       assert.equal(confirms.length, 1, `expected exactly one confirm, saw ${confirms.length}`);
       assert.equal(alerts.length, 1, `expected exactly one terminal alert, saw ${alerts.length}: ${alerts.map((a) => a.message).join(' | ')}`);
       assert.match(alerts[0].message, /Import blocked/, `expected a conflict alert, saw: ${alerts[0].message}`);
+      await recoveryDownloadEvent;
+      await awaitDownloads(stateA, downloadFrom);
       const newDownloads = stateA.downloads.slice(downloadFrom);
       assert.equal(newDownloads.length, 1, `expected exactly one recovery download, saw ${newDownloads.length}`);
       assert.ok(newDownloads[0].name.startsWith('dashboard-draft-'), `recovery download name: ${newDownloads[0].name}`);
@@ -698,6 +701,6 @@ const counts = results.reduce((acc, r) => {
 }, {});
 console.log('');
 console.log(`Summary: PASS ${counts.PASS ?? 0}; NOT RUN ${counts['NOT RUN'] ?? 0}; FAIL ${counts.FAIL ?? 0}`);
-console.log('Boundary rule: PASS means the case ran in a real Firefox browser against the tree named in the header.');
+console.log('Boundary rule: PASS means the case ran in a real Chromium-family browser against the tree named in the header.');
 if ((counts.FAIL ?? 0) > 0 || (counts['NOT RUN'] ?? 0) > 0) process.exitCode = 1;
 emitResults();
