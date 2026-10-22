@@ -6,6 +6,11 @@
 // adoption, quarantine retention) and V11-RECOVERY-02 (export consistency:
 // an export taken after adoption, before any save or re-init, must carry
 // the partitioned data with its quarantine, and must import cleanly).
+// V12 extends V11-RECOVERY-02 phase 1 with malformed-object jobs: entries
+// that are objects but fail the strict import contract for jobs (one
+// missing title, one missing id). Adoption must partition those entries
+// to quarantine with their original objects, exactly like null entries,
+// so the exported backup stays round-trippable.
 // No store mocks. The spec serves a
 // static tree from a local temporary origin, opens a Chromium-family
 // browser (Chrome/Brave/Chromium via QA_BROWSER) with an isolated context,
@@ -354,6 +359,20 @@ function assertQuarantineExact(parsed, expected, label) {
 const P1_GOAL = { id: 'goal_qa_v11_p1', title: 'Invented Phase One Goal', status: 'active', history: [] };
 const P1_JOB_1 = { id: 'job_qa_v11_p1_one', title: 'Invented Phase One Job One', company: 'Invented Co One', status: 'applied', location: 'toronto' };
 const P1_JOB_2 = { id: 'job_qa_v11_p1_two', title: 'Invented Phase One Job Two', company: 'Invented Co Two', status: 'applied', location: 'toronto' };
+// V12 malformed-object jobs. Each entry is a non-null, non-array object,
+// so the V10/V11 shape-only partition kept it. Each entry fails the
+// strict import contract for jobs (id and title are both required).
+const P1_JOB_NO_TITLE = { id: 'job_qa_v12_missing_title', company: 'Invented Co No Title', status: 'applied', location: 'toronto' };
+const P1_JOB_NO_ID = { title: 'Invented Phase One Job No Id', company: 'Invented Co No Id', status: 'applied', location: 'toronto' };
+const P1_UNRELATED_PLACE_ID = 'place_qa_v12_unrelated';
+// Phase 1 poisoned jobs, by original index: 0 valid neighbour one,
+// 1 null, 2 object missing title, 3 object missing id, 4 valid
+// neighbour two. The expected quarantine is the full set, in order.
+const P1_EXPECTED_QUARANTINE = [
+  { path: 'jobs', index: 1, value: null },
+  { path: 'jobs', index: 2, value: P1_JOB_NO_TITLE },
+  { path: 'jobs', index: 3, value: P1_JOB_NO_ID },
+];
 const P2_GOAL_D1 = { id: 'goal_qa_v11_p2_d1', title: 'Invented Phase Two Goal D1', status: 'active', history: [] };
 const P2_JOB_D1 = { id: 'job_qa_v11_p2_d1', title: 'Invented Phase Two Job D1', company: 'Invented Co D1', status: 'applied', location: 'toronto' };
 const P2_GOAL_D2 = { id: 'goal_qa_v11_p2_d2', title: 'Invented Phase Two Goal D2', status: 'active', history: [] };
@@ -530,14 +549,18 @@ await group('V10-RECOVERY-01', async () => {
 // Phase 1: the disk record is poisoned after a clean boot. Page A adopts
 // the record through the sync channel. An export taken before any save and
 // before any re-init must carry the partitioned data with the matching
-// quarantine. That exact export must import into a clean context.
+// quarantine. That exact export must import into a clean context. V12
+// adds malformed-object jobs to the phase 1 poison (missing title,
+// missing id), an unrelated save in the import context, and a re-import
+// of the second export.
 // Phase 2: the disk record is newer than the page cache and no sync
 // notification is sent. The export must carry the newer disk data,
 // partitioned, not the stale cache.
-// Export and import defects are collected, not thrown at first sight. The
-// case still attempts the import and phase 2 after an export defect. The
-// case then fails once with every defect named. Adoption, download and
-// setup defects throw at once: those are mechanics, not the product defect.
+// Adoption-partition, export and import defects are collected, not thrown
+// at first sight. The case still attempts the import and phase 2 after
+// an adoption or export defect. The case then fails once with every
+// defect named. Download and setup defects throw at once: those are
+// mechanics, not the product defect.
 await group('V11-RECOVERY-02', async () => {
   const defects = [];
   // Defect text goes on one line. The results writer keeps the first
@@ -567,12 +590,14 @@ await group('V11-RECOVERY-02', async () => {
     assert.deepEqual(seeded, { committed: true, conflict: false }, 'phase 1 seed save did not commit');
 
     // --- Phase 1, step 3: poison the disk record, then notify page A. ---
-    // A foreign writer puts a null entry between the two valid jobs and
-    // increments the revision. No other collection changes.
+    // A foreign writer puts three malformed entries between the two
+    // valid jobs and increments the revision: a null entry at index 1,
+    // an object missing title at index 2, and an object missing id at
+    // index 3. No other collection changes.
     const diskBefore = await page1.evaluate(rawReadRecordInPage);
     assert.ok(diskBefore, 'phase 1: no durable record exists after the seed save');
     const poisoned = JSON.parse(JSON.stringify(diskBefore));
-    poisoned.data.jobs = [poisoned.data.jobs[0], null, poisoned.data.jobs[1]];
+    poisoned.data.jobs = [poisoned.data.jobs[0], null, P1_JOB_NO_TITLE, P1_JOB_NO_ID, poisoned.data.jobs[1]];
     poisoned.revision = diskBefore.revision + 1;
     poisoned.savedAt = new Date().toISOString();
     await page1.evaluate(rawWriteRecordInPage, poisoned);
@@ -581,22 +606,43 @@ await group('V11-RECOVERY-02', async () => {
       bc.postMessage('sync');
       bc.close();
     });
-    await page1.waitForFunction(
-      (ids) => window.__store.getData().jobs.map((j) => j.id).join(',') === ids.join(','),
-      [P1_JOB_1.id, P1_JOB_2.id],
-      { timeout: 8000 },
-    );
-    const adopted1 = await page1.evaluate(() => {
-      const d = window.__store.getData();
-      return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id) };
-    });
-    assert.deepEqual(adopted1.jobs, [P1_JOB_1.id, P1_JOB_2.id], 'phase 1: adopted jobs differ from the valid neighbours in order');
-    assert.deepEqual(adopted1.goals, [P1_GOAL.id], 'phase 1: adopted goals differ');
+    // Adoption defects are collected, not thrown. On the defect the
+    // wait times out and the snapshot check fails, and the case still
+    // runs the export and import steps so every defect is named once.
+    try {
+      await page1.waitForFunction(
+        (ids) => window.__store.getData().jobs.map((j) => j.id).join(',') === ids.join(','),
+        [P1_JOB_1.id, P1_JOB_2.id],
+        { timeout: 8000 },
+      );
+    } catch (error) {
+      collect(new Error(`phase 1 adoption wait: getData().jobs did not reduce to the valid neighbours only (${String(error.message).split('\n')[0]})`));
+    }
+    try {
+      const adopted1 = await page1.evaluate(() => {
+        const d = window.__store.getData();
+        return { goals: d.goals.map((g) => g.id), jobs: d.jobs };
+      });
+      assert.deepEqual(
+        adopted1.jobs.map((j) => (j && typeof j === 'object' ? j.id : j)),
+        [P1_JOB_1.id, P1_JOB_2.id],
+        'phase 1: adopted jobs differ from the valid neighbours in order',
+      );
+      assert.ok(
+        adopted1.jobs.every((j) => j && typeof j === 'object' && j.id && j.title),
+        `phase 1: adopted jobs carry a malformed-object entry (${JSON.stringify(adopted1.jobs)})`,
+      );
+      assert.deepEqual(adopted1.goals, [P1_GOAL.id], 'phase 1: adopted goals differ');
+    } catch (error) {
+      collect(error);
+    }
     assert.equal(errors1.length, 0, `phase 1 adoption produced pageerror(s): ${errors1.join(' ; ')}`);
 
     // --- Phase 1, step 4: export before any save and before any re-init. ---
     // The quarantine in the export envelope is the adopted quarantine. The
-    // adoption policy puts exactly one entry there: jobs index 1, null.
+    // adoption policy puts exactly three entries there, in order: jobs
+    // index 1 null, index 2 the object missing title, and index 3 the
+    // object missing id, each with its original value.
     const export1 = await exportCapture(page1);
     try {
       assert.equal(export1.parsed.app, 'dashboard', 'phase 1 export: app field is not dashboard');
@@ -607,13 +653,17 @@ await group('V11-RECOVERY-02', async () => {
         [P1_JOB_1.id, P1_JOB_2.id],
         'phase 1 export before save: exported data.jobs is not the partitioned neighbour pair',
       );
+      assert.ok(
+        (export1.parsed.data?.jobs ?? []).every((j) => j && typeof j === 'object' && j.id && j.title),
+        `phase 1 export before save: an exported job is missing required fields (${JSON.stringify(export1.parsed.data?.jobs)})`,
+      );
       assert.deepEqual(
         (export1.parsed.data?.goals ?? []).map((g) => (g && typeof g === 'object' ? g.id : g)),
         [P1_GOAL.id],
         'phase 1 export before save: exported data.goals differs',
       );
       assertExportCollectionsClean(export1.parsed.data, 'phase 1 export before save');
-      assertQuarantineExact(export1.parsed, [{ path: 'jobs', index: 1, value: null }], 'phase 1 export before save');
+      assertQuarantineExact(export1.parsed, P1_EXPECTED_QUARANTINE, 'phase 1 export before save');
     } catch (error) {
       collect(error);
     }
@@ -654,22 +704,98 @@ await group('V11-RECOVERY-02', async () => {
       assert.deepEqual(snap2.goals, [P1_GOAL.id], 'phase 1 import: imported goals differ');
       const disk2 = await page2.evaluate(rawReadRecordInPage);
       assert.deepEqual(
-        disk2?.envelopeExtras?.quarantine, [{ path: 'jobs', index: 1, value: null }],
+        disk2?.envelopeExtras?.quarantine, P1_EXPECTED_QUARANTINE,
         'phase 1 import: the durable record does not carry the exact quarantine metadata',
+      );
+      // Unrelated save in the clean context. The quarantine and the
+      // valid data must survive the save itself.
+      const savedUnrelated = await page2.evaluate(async (placeId) => {
+        const store = window.__store;
+        const snapshot = store.getData();
+        snapshot.places.push({ id: placeId, name: 'Invented V12 Unrelated Place', lat: 43.65, lng: -79.38 });
+        return store.saveData(snapshot);
+      }, P1_UNRELATED_PLACE_ID);
+      assert.deepEqual(savedUnrelated, { committed: true, conflict: false }, 'phase 1 import: the unrelated save did not commit cleanly');
+      const snap2saved = await page2.evaluate(() => {
+        const d = window.__store.getData();
+        return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id), places: d.places.map((p) => p.id) };
+      });
+      assert.deepEqual(snap2saved.jobs, [P1_JOB_1.id, P1_JOB_2.id], 'phase 1 import: jobs differ after the unrelated save');
+      assert.deepEqual(snap2saved.goals, [P1_GOAL.id], 'phase 1 import: goals differ after the unrelated save');
+      assert.deepEqual(snap2saved.places, [P1_UNRELATED_PLACE_ID], 'phase 1 import: the unrelated save is missing after the save');
+      const disk2saved = await page2.evaluate(rawReadRecordInPage);
+      assert.deepEqual(
+        disk2saved?.envelopeExtras?.quarantine, P1_EXPECTED_QUARANTINE,
+        'phase 1 import: the durable record lost quarantine entries in the unrelated save',
       );
       await page2.reload({ waitUntil: 'load' });
       await grabStore(page2);
       await page2.evaluate(async () => { await window.__store.initStore(); });
       const snap2b = await page2.evaluate(() => {
         const d = window.__store.getData();
-        return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id) };
+        return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id), places: d.places.map((p) => p.id) };
       });
       assert.deepEqual(snap2b.jobs, [P1_JOB_1.id, P1_JOB_2.id], 'phase 1 import: jobs differ after reload');
       assert.deepEqual(snap2b.goals, [P1_GOAL.id], 'phase 1 import: goals differ after reload');
+      assert.deepEqual(snap2b.places, [P1_UNRELATED_PLACE_ID], 'phase 1 import: the unrelated save is missing after reload');
       const export2 = await exportCapture(page2);
       assertExportCollectionsClean(export2.parsed.data, 'phase 1 second export');
-      assertQuarantineExact(export2.parsed, [{ path: 'jobs', index: 1, value: null }], 'phase 1 second export');
+      assert.ok(
+        (export2.parsed.data?.jobs ?? []).every((j) => j && typeof j === 'object' && j.id && j.title),
+        `phase 1 second export: an exported job is missing required fields (${JSON.stringify(export2.parsed.data?.jobs)})`,
+      );
+      assert.deepEqual(
+        (export2.parsed.data?.jobs ?? []).map((j) => (j && typeof j === 'object' ? j.id : j)),
+        [P1_JOB_1.id, P1_JOB_2.id],
+        'phase 1 second export: exported jobs differ from the valid neighbours in order',
+      );
+      assert.ok(
+        (export2.parsed.data?.places ?? []).some((p) => p?.id === P1_UNRELATED_PLACE_ID),
+        'phase 1 second export: the unrelated save is missing from the second export',
+      );
+      assertQuarantineExact(export2.parsed, P1_EXPECTED_QUARANTINE, 'phase 1 second export');
       assert.equal(errors2.length, 0, `phase 1 import context produced pageerror(s): ${errors2.join(' ; ')}`);
+      // Re-import the second export into a third isolated clean
+      // context. The second backup must also be round-trippable.
+      const context2b = await browser.newContext({ acceptDownloads: true });
+      contexts.push(context2b);
+      const page2b = await context2b.newPage();
+      const errors2b = [];
+      const dialogs2b = [];
+      page2b.on('pageerror', (error) => errors2b.push(error.message));
+      page2b.on('dialog', async (dialog) => {
+        dialogs2b.push(`${dialog.type()}: ${dialog.message()}`);
+        await dialog.accept().catch(() => {});
+      });
+      await page2b.goto(`${origin}/index.html`, { waitUntil: 'load' });
+      await grabStore(page2b);
+      await page2b.evaluate(async () => { await window.__store.initStore(); });
+      const reimportResult = await page2b.evaluate(async (text) => new Promise((resolve) => {
+        const file = new File([text], 'dashboard-backup-v12-second.json', { type: 'application/json' });
+        window.__store.importData(file, (res) => resolve({
+          committed: !!res?.committed,
+          conflict: !!res?.conflict,
+          cancelled: !!res?.cancelled,
+          error: res?.error ? String(res.error.message ?? res.error) : null,
+        }));
+      }), export2.text);
+      assert.equal(
+        reimportResult.committed, true,
+        `phase 1 second export re-import: the second export did not commit in a clean context: ${JSON.stringify(reimportResult)}; dialogs: ${dialogs2b.join(' | ')}`,
+      );
+      const snap2c = await page2b.evaluate(() => {
+        const d = window.__store.getData();
+        return { goals: d.goals.map((g) => g.id), jobs: d.jobs.map((j) => j.id), places: d.places.map((p) => p.id) };
+      });
+      assert.deepEqual(snap2c.jobs, [P1_JOB_1.id, P1_JOB_2.id], 'phase 1 second export re-import: imported jobs differ');
+      assert.deepEqual(snap2c.goals, [P1_GOAL.id], 'phase 1 second export re-import: imported goals differ');
+      assert.deepEqual(snap2c.places, [P1_UNRELATED_PLACE_ID], 'phase 1 second export re-import: the unrelated save is missing');
+      const disk2b = await page2b.evaluate(rawReadRecordInPage);
+      assert.deepEqual(
+        disk2b?.envelopeExtras?.quarantine, P1_EXPECTED_QUARANTINE,
+        'phase 1 second export re-import: the durable record does not carry the exact quarantine metadata',
+      );
+      assert.equal(errors2b.length, 0, `phase 1 second export re-import context produced pageerror(s): ${errors2b.join(' ; ')}`);
     } catch (error) {
       collect(error);
     }
@@ -736,7 +862,7 @@ await group('V11-RECOVERY-02', async () => {
     }
 
     assert.equal(defects.length, 0, defects.join(' || '));
-    return 'export before any save or re-init carried the partitioned neighbours in order with exactly one quarantine entry (jobs[1]=null) and imported with committed:true into a clean context, where the data and the quarantine survived reload and a second export; with the disk record newer than the page cache and no sync notification, the export carried the newer disk dataset D2 partitioned with its quarantine (goals[0]=null), not the cached D1';
+    return 'export before any save or re-init carried the partitioned neighbours in order with exactly three quarantine entries (jobs[1]=null, jobs[2]=object missing title, jobs[3]=object missing id, each with its original value) and imported with committed:true into a clean context, where the data and the quarantine survived an unrelated save, reload and a second export, and the second export re-imported with committed:true into a third clean context; with the disk record newer than the page cache and no sync notification, the export carried the newer disk dataset D2 partitioned with its quarantine (goals[0]=null), not the cached D1';
   } finally {
     for (const context of contexts) await context.close();
   }
