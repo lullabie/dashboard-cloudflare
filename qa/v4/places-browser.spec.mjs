@@ -18,6 +18,18 @@
 // object verbatim. Repaired ids are stable across reload, export and
 // import — a restore never re-mints them.
 //
+// V14 extension (phases 6-8, same case): Codex V14 reproduced a repair
+// race in installed Chrome — two tabs adopt the same poisoned record
+// simultaneously, mint different ids under one shared generation/
+// revision token, and the losing tab's tracked snapshot then saves with
+// committed success over the durable winner. Phases 6-8 race two pages
+// in one context against a fresh poisoned record, capture each page's
+// minted id and tracked snapshot inside the adoption window, and assert
+// one canonical winner: the loser's stale snapshot is rejected as a
+// conflict (verified against the disk, never the return value alone),
+// and the loser's edit still lands through a fresh snapshot with the
+// canonical id intact.
+//
 // No store mocks. The spec serves a static tree from a local temporary
 // origin, opens a Chromium-family browser (Chrome/Brave/Chromium via
 // QA_BROWSER) with isolated contexts, seeds a RAW IndexedDB record whose
@@ -77,6 +89,11 @@ const PROVENANCE_PHASE_1 = [
   { path: 'places', index: 2, value: PLACE_DUP_ID },
   { path: 'places', index: 3, value: PLACE_SHORT_ID },
 ];
+// V14 race fixtures (phases 6-8): one id-less place written raw to a
+// clean record at a bumped revision, so two pages in one context adopt
+// it at effectively the same time and repair it independently.
+const RACE_PLACE = { name: 'Race Place', title: 'Race Place', lat: 43, lng: -79 };
+const RACE_EDITED_TITLE = 'Race Place Edited By Loser';
 
 let browserInfo = null;
 const attemptedKind = String(process.env.QA_BROWSER ?? 'chromium').trim().toLowerCase() || 'chromium';
@@ -209,6 +226,73 @@ const rawWriteRecordInPage = async (replacement) => {
     };
     req.onerror = () => reject(req.error);
   });
+};
+
+// Posts the store's cross-tab sync notification. Page-side use.
+const postSyncInPage = async () => {
+  const bc = new BroadcastChannel('dashboard_store_sync');
+  bc.postMessage('sync');
+  bc.close();
+};
+
+// V14 race barrier. Installs a promise on window that resolves the
+// moment a place titled 'Race Place' first appears in getData(),
+// stashing that page's minted id and a tracked getData() snapshot on
+// window in the same tick — inside the adoption window, before repair
+// persistence can settle. The snapshot object must stay in the page:
+// saveData() tokens are keyed by object identity in a WeakMap, so a
+// snapshot round-tripped through the driver is untracked. Page-side.
+const installRaceCaptureInPage = async () => {
+  window.__raceCapture = (async () => {
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      const places = window.__store?.getData().places ?? [];
+      const race = places.find((p) => p.title === 'Race Place');
+      if (race) {
+        window.__raceMintId = race.id ?? null;
+        window.__raceSnap = window.__store.getData();
+        return { mintId: window.__raceMintId, count: places.length };
+      }
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    return null;
+  })();
+};
+
+// Attempts to save the stashed adoption-window snapshot with the race
+// place's title edited — the losing tab's stale save. Returns the
+// outcome shape; never throws. Page-side use.
+const attemptRaceSaveInPage = async (editedTitle) => {
+  const snap = window.__raceSnap;
+  if (!snap) return { outcome: 'no-snapshot' };
+  const race = snap.places.find((p) => p.title === 'Race Place');
+  if (!race) return { outcome: 'race-place-missing-from-snapshot' };
+  race.title = editedTitle;
+  try {
+    const res = await window.__store.saveData(snap);
+    return { outcome: 'resolved', res };
+  } catch (error) {
+    return { outcome: 'rejected', message: String(error?.message ?? error) };
+  }
+};
+
+// Saves the race place edit through a FRESH tracked snapshot — the
+// legitimate retry after a conflict adoption. Finds the race place by
+// its canonical id first, then by either title, so the phase still
+// runs against the actual state a failed race leaves behind.
+// Page-side use.
+const freshRaceEditInPage = async ({ canonicalId, editedTitle }) => {
+  const snap = window.__store.getData();
+  const race = snap.places.find((p) => p.id === canonicalId) ??
+    snap.places.find((p) => p.title === 'Race Place' || p.title === editedTitle);
+  if (!race) return { outcome: 'race-place-missing' };
+  race.title = editedTitle;
+  try {
+    const res = await window.__store.saveData(snap);
+    return { outcome: 'resolved', res };
+  } catch (error) {
+    return { outcome: 'rejected', message: String(error?.message ?? error) };
+  }
 };
 
 async function grabStore(page) {
@@ -358,7 +442,9 @@ console.log('');
 // V13-PLACES-01 — poisoned place IDs repaired at adoption, provenance
 // quarantined, edit updates one record, delete removes one record,
 // cross-tab adoption repairs and merges provenance, and repaired IDs
-// stay stable across reload, export and import.
+// stay stable across reload, export and import. Phases 6-8 (V14) add
+// the two-tab repair race: one canonical winner, the losing tab's
+// stale snapshot rejected, its edit preserved via a fresh snapshot.
 // Assertion failures are collected per phase, not thrown at first
 // sight: the case fails once with every defect named. Download, seed
 // and navigation defects throw at once — those are mechanics.
@@ -640,8 +726,223 @@ await group('V13-PLACES-01', async () => {
       collect(error);
     }
 
+    // --- Phase 6 (V14): two-tab repair race — setup, barriers, settle. ---
+    // Two pages in ONE context share the native IndexedDB and
+    // BroadcastChannel. Both load the app clean; then one raw poisoned
+    // record (a single id-less place, revision bumped) is written from
+    // page A and the store's sync notification is posted, so both pages
+    // adopt it at effectively the same time. Each page's barrier
+    // captures its minted id and a tracked snapshot inside the adoption
+    // window. The assertions are winner-agnostic: whichever mint the
+    // disk settles on is the canonical id both pages must converge to.
+    let racePageA = null;
+    let racePageB = null;
+    let raceCanonicalId = null;
+    let raceLoserPage = null;
+    let raceLoserLabel = null;
+    let raceCandidates = null;
+    let raceAgreement = false;
+    const errorsRaceA = [];
+    const errorsRaceB = [];
+    try {
+      const contextRace = await browser.newContext({ acceptDownloads: true });
+      contexts.push(contextRace);
+      racePageA = await contextRace.newPage();
+      racePageB = await contextRace.newPage();
+      racePageA.on('pageerror', (error) => errorsRaceA.push(error.message));
+      racePageB.on('pageerror', (error) => errorsRaceB.push(error.message));
+      for (const racePage of [racePageA, racePageB]) {
+        await racePage.goto(`${origin}/index.html`, { waitUntil: 'load' });
+        await grabStore(racePage);
+      }
+      const bootRecord = await pollDiskRecord(racePageA, (rec) => !!rec);
+      assert.ok(bootRecord, 'phase 6: the race context produced no clean boot record');
+      // Barriers first: each page watches for the poisoned place and
+      // stashes its mint and snapshot the moment adoption exposes it.
+      await racePageA.evaluate(installRaceCaptureInPage);
+      await racePageB.evaluate(installRaceCaptureInPage);
+      const poisonedRecord = JSON.parse(JSON.stringify(bootRecord));
+      poisonedRecord.data.places = [RACE_PLACE];
+      poisonedRecord.revision = bootRecord.revision + 1;
+      poisonedRecord.savedAt = new Date().toISOString();
+      await racePageA.evaluate(rawWriteRecordInPage, poisonedRecord);
+      await racePageA.evaluate(postSyncInPage);
+      const capA = await racePageA.evaluate(() => window.__raceCapture);
+      const capB = await racePageB.evaluate(() => window.__raceCapture);
+      assert.ok(capA, 'phase 6: page A never adopted the poisoned race place');
+      assert.ok(capB, 'phase 6: page B never adopted the poisoned race place');
+      raceCandidates = { A: capA.mintId, B: capB.mintId };
+      // Settle: the durable record carries one valid repaired id,
+      // stable across two reads, and both pages expose that same id.
+      const settleDisk = await pollDiskRecord(racePageA, (rec) => {
+        const rp = (rec.data?.places ?? []).find((p) => p.title === RACE_PLACE.title);
+        return !!rp && isValidPlaceId(rp.id);
+      });
+      const settleRace = (settleDisk?.data?.places ?? []).find((p) => p.title === RACE_PLACE.title);
+      assert.ok(
+        settleRace && isValidPlaceId(settleRace.id),
+        'phase 6: the durable record never settled on a valid repaired race id',
+      );
+      raceCanonicalId = settleRace.id;
+      await racePageA.waitForTimeout(300);
+      const settleDisk2 = await racePageA.evaluate(rawReadRecordInPage);
+      const settleRace2 = (settleDisk2?.data?.places ?? []).find((p) => p.title === RACE_PLACE.title);
+      assert.equal(
+        settleRace2?.id, raceCanonicalId,
+        'phase 6: the durable race id was still changing when the settle window closed',
+      );
+      for (const [label, racePage] of [['A', racePageA], ['B', racePageB]]) {
+        try {
+          await racePage.waitForFunction(
+            (id) => window.__store.getData().places.some(
+              (p) => p.title === 'Race Place' && p.id === id,
+            ),
+            raceCanonicalId,
+            { timeout: 8000 },
+          );
+        } catch {
+          const exposed = await racePage.evaluate(
+            () => window.__store.getData().places.find((p) => p.title === 'Race Place')?.id ?? null,
+          );
+          collect(new Error(`phase 6: page ${label} did not converge to the canonical race id (exposes ${JSON.stringify(exposed)}, canonical ${raceCanonicalId}; candidates A=${JSON.stringify(raceCandidates.A)} B=${JSON.stringify(raceCandidates.B)})`));
+        }
+      }
+      // The loser is the page whose adoption-window mint differs from
+      // the canonical winner. If both pages captured the canonical id,
+      // the agreement is recorded and either snapshot serves: a
+      // snapshot taken inside the window still predates the settled
+      // repair, so the phase 7 rejection must hold for it too.
+      if (capA.mintId !== raceCanonicalId) {
+        raceLoserPage = racePageA; raceLoserLabel = 'A';
+      } else if (capB.mintId !== raceCanonicalId) {
+        raceLoserPage = racePageB; raceLoserLabel = 'B';
+      } else {
+        raceLoserPage = racePageA; raceLoserLabel = 'A'; raceAgreement = true;
+      }
+      assert.equal(errorsRaceA.length, 0, `phase 6 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
+      assert.equal(errorsRaceB.length, 0, `phase 6 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
+    } catch (error) {
+      collect(error);
+    }
+
+    // --- Phase 7 (V14): the losing tab's stale snapshot must not commit. ---
+    // The loser saves its adoption-window snapshot with the race place
+    // edited. The save must be rejected as a conflict, and the proof is
+    // the disk read afterwards — never the returned flag alone.
+    try {
+      assert.ok(
+        raceCanonicalId && raceLoserPage,
+        'phase 7: phase 6 produced no canonical id or losing page to save from',
+      );
+      const attempt = await raceLoserPage.evaluate(attemptRaceSaveInPage, RACE_EDITED_TITLE);
+      try {
+        assert.equal(
+          attempt.outcome, 'rejected',
+          `the losing tab's adoption-window snapshot save was not rejected (outcome ${attempt.outcome}` +
+            `${attempt.outcome === 'resolved' ? `, result ${JSON.stringify(attempt.res)}` : `, ${attempt.message ?? 'no detail'}`}` +
+            `; candidates A=${JSON.stringify(raceCandidates?.A)} B=${JSON.stringify(raceCandidates?.B)}, canonical ${raceCanonicalId}` +
+            `${raceAgreement ? ', both pages captured the canonical id' : ''})`,
+        );
+        assert.ok(
+          String(attempt.message ?? '').includes('Conflict'),
+          `the losing save rejection is not the store conflict error (${attempt.message ?? 'no message'})`,
+        );
+      } catch (error) {
+        collect(new Error(`phase 7: ${String(error.message).replace(/\s+/g, ' ').trim()}`));
+      }
+      try {
+        const diskAfterLoser = await raceLoserPage.evaluate(rawReadRecordInPage);
+        const diskRace = (diskAfterLoser?.data?.places ?? []).find(
+          (p) => p.title === RACE_PLACE.title || p.title === RACE_EDITED_TITLE,
+        );
+        assert.ok(diskRace, 'the race place is missing from the durable record after the losing save attempt');
+        assert.equal(
+          diskRace.id, raceCanonicalId,
+          `the durable race id is ${JSON.stringify(diskRace.id)} after the losing save, not the canonical ${raceCanonicalId} (the loser's mint overwrote the winner)`,
+        );
+        assert.equal(
+          diskRace.title, RACE_PLACE.title,
+          'the losing tab edit landed on the durable record despite the rejection',
+        );
+      } catch (error) {
+        collect(new Error(`phase 7 durable record: ${String(error.message).replace(/\s+/g, ' ').trim()}`));
+      }
+      try {
+        const loserNow = await raceLoserPage.evaluate(
+          () => window.__store.getData().places.find((p) => p.title === 'Race Place')?.id ?? null,
+        );
+        assert.equal(
+          loserNow, raceCanonicalId,
+          `the losing tab does not expose the canonical id after its rejected save (exposes ${JSON.stringify(loserNow)})`,
+        );
+      } catch (error) {
+        collect(new Error(`phase 7 loser convergence: ${String(error.message).replace(/\s+/g, ' ').trim()}`));
+      }
+      assert.equal(errorsRaceA.length, 0, `phase 7 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
+      assert.equal(errorsRaceB.length, 0, `phase 7 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
+    } catch (error) {
+      collect(error);
+    }
+
+    // --- Phase 8 (V14): the loser's edit lands via a fresh snapshot. ---
+    // A rejected save must not lose the user's edit: the losing tab
+    // retries with a fresh tracked snapshot and the edit commits, with
+    // the canonical winner id intact on disk, on both tabs after
+    // reload, and in the export.
+    try {
+      assert.ok(
+        raceCanonicalId && raceLoserPage && racePageA && racePageB,
+        'phase 8: phase 6 produced no race state to build on',
+      );
+      const fresh = await raceLoserPage.evaluate(freshRaceEditInPage, {
+        canonicalId: raceCanonicalId,
+        editedTitle: RACE_EDITED_TITLE,
+      });
+      assert.equal(
+        fresh.outcome, 'resolved',
+        `phase 8: the losing tab's fresh-snapshot edit did not commit (${fresh.outcome}: ${fresh.message ?? 'no detail'})`,
+      );
+      assert.deepEqual(fresh.res, { committed: true, conflict: false }, 'phase 8: the fresh edit did not commit cleanly');
+      const diskAfterEdit = await raceLoserPage.evaluate(rawReadRecordInPage);
+      const editedRace = (diskAfterEdit?.data?.places ?? []).find((p) => p.title === RACE_EDITED_TITLE);
+      assert.ok(editedRace, 'phase 8: the edited race place is missing from the durable record');
+      assert.equal(
+        editedRace.id, raceCanonicalId,
+        `phase 8: the durable race id after the legitimate edit is ${JSON.stringify(editedRace.id)}, not the canonical winner ${raceCanonicalId}`,
+      );
+      for (const [label, racePage] of [['A', racePageA], ['B', racePageB]]) {
+        await racePage.reload({ waitUntil: 'load' });
+        await grabStore(racePage);
+        await racePage.waitForFunction(
+          (t) => window.__store.getData().places.some((p) => p.title === t),
+          RACE_EDITED_TITLE,
+          { timeout: 8000 },
+        );
+        const exposed = await racePage.evaluate(
+          (t) => window.__store.getData().places.find((p) => p.title === t) ?? null,
+          RACE_EDITED_TITLE,
+        );
+        assert.ok(exposed, `phase 8: race page ${label} does not expose the edited race place after reload`);
+        assert.equal(
+          exposed.id, raceCanonicalId,
+          `phase 8: race page ${label} exposes race id ${JSON.stringify(exposed.id)} after reload, not the canonical ${raceCanonicalId}`,
+        );
+      }
+      const raceExport = await exportCapture(racePageA);
+      const exportedRace = (raceExport.parsed.data?.places ?? []).find((p) => p.title === RACE_EDITED_TITLE);
+      assert.ok(exportedRace, 'phase 8 export: the edited race place is missing from the export');
+      assert.equal(
+        exportedRace.id, raceCanonicalId,
+        'phase 8 export: the exported race place does not carry the canonical id',
+      );
+      assert.equal(errorsRaceA.length, 0, `phase 8 produced pageerror(s) on race page A: ${errorsRaceA.join(' ; ')}`);
+      assert.equal(errorsRaceB.length, 0, `phase 8 produced pageerror(s) on race page B: ${errorsRaceB.join(' ; ')}`);
+    } catch (error) {
+      collect(error);
+    }
+
     assert.equal(defects.length, 0, defects.join(' || '));
-    return 'poisoned load repaired the missing, duplicate and invalid place ids at adoption with the valid neighbour id byte-identical and exactly three provenance entries (original objects at indices 1, 2, 3) on the durable record; the edit of the formerly id-less place updated one record (count stayed 4, no original left beside the edit); delete by repaired id removed exactly the duplicate-repaired record; a cross-tab raw poisoned append was adopted with a repaired id, persisted, and its provenance merged behind the existing entries; after reload the ids were byte-identical, the export carried the same ids and provenance, and the exact export imported with committed:true into a clean context with the same ids and provenance on disk';
+    return 'poisoned load repaired the missing, duplicate and invalid place ids at adoption with the valid neighbour id byte-identical and exactly three provenance entries (original objects at indices 1, 2, 3) on the durable record; the edit of the formerly id-less place updated one record (count stayed 4, no original left beside the edit); delete by repaired id removed exactly the duplicate-repaired record; a cross-tab raw poisoned append was adopted with a repaired id, persisted, and its provenance merged behind the existing entries; after reload the ids were byte-identical, the export carried the same ids and provenance, and the exact export imported with committed:true into a clean context with the same ids and provenance on disk; two simultaneous cross-tab adopters of a fresh poisoned record settled on one canonical race id, the losing tab adoption-window snapshot save was rejected as a conflict with the durable record verified unchanged on disk, and the losing tab edit then committed through a fresh snapshot with the canonical id intact on disk, on both tabs after reload, and in the export';
   } finally {
     for (const context of contexts) await context.close();
   }
