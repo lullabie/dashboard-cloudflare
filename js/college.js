@@ -37,12 +37,16 @@ export function deleteCollegeItem(type, id) {
 
 export function createCollegeCard(item, type, onEdit, onDelete) {
     const daysLeft = getTorontoMidnight(item.date);
+    const hasValidDate = Number.isFinite(daysLeft);
     let progressPercent = 0;
-    
+
     let statusText = `${daysLeft} days left`;
     let colorClass = 'lime';
-    
-    if (daysLeft < 0) {
+
+    if (!hasValidDate) {
+        progressPercent = 0;
+        statusText = 'Date not set';
+    } else if (daysLeft < 0) {
         progressPercent = 100;
         statusText = `${Math.abs(daysLeft)} days overdue`;
         colorClass = 'danger';
@@ -90,7 +94,7 @@ export function createCollegeCard(item, type, onEdit, onDelete) {
     strongDate.textContent = 'Date: ';
     dateDiv.appendChild(strongDate);
     
-    const dateText = document.createTextNode(item.date + ' ');
+    const dateText = document.createTextNode((item.date || 'No date set') + ' ');
     dateDiv.appendChild(dateText);
     
     const statusSpan = document.createElement('span');
