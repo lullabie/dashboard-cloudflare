@@ -1,8 +1,8 @@
 # Dashboard project status
 
-Updated: 2026-10-21. Authority for current state. Supersedes the
-2026-10-16 status (which described a pre-build repository and a proposed
-Cloudflare backend; that plan is historical, see docs/plan-b/).
+Updated: 2026-10-22 (post-V14B). Authority for current state. Supersedes
+the 2026-10-21 status (v3/v4 lane state, now historical; the lane
+records remain under docs/review/).
 
 ## Current state
 
@@ -11,43 +11,46 @@ Cloudflare backend; that plan is historical, see docs/plan-b/).
   updates, static hosting. Chart.js loads from CDN with an offline
   fallback requirement (acceptance gate, see docs/ACCEPTANCE.md).
 - Repository: `lullabie/dashboard-cloudflare`, public, MIT LICENSE.
-  Verified base commit for the v4 bundle:
-  `29d43ff04a6abb257b5046c85f2fcba6f0bb679d` (main).
+  Base commit: `29d43ff04a6abb257b5046c85f2fcba6f0bb679d` (main).
+- Review branch: `codex/v5-review`, head
+  `1696d372e3ce6bf0fc9d875c31747d65d7b22cdb`. Draft PR #2 tracks it.
+  Main is unchanged; nothing is merged or deployed.
 - A stale candidate branch `bulk-phase-20261019` exists; its release
   claim was withdrawn on 2026-10-20. It is evidence, not a candidate.
 - The app ships empty of personal data. All test data is invented.
+- Zero LICENSE changes on the review branch: `git diff
+  29d43ff..1696d37 -- LICENSE` is empty (checked 2026-10-22).
 
-## v3 repair lanes (verified under Node mocks, not browser acceptance)
+## V14B state (current)
 
-- STORE (js/store.js): v3 + BroadcastChannel correction + degraded-save
-  correction harvested and verified. Current store.js SHA-256
-  `b600175c04e7100e8bb7bb6a8e5cd899f5eb0cb6663cd16f85ad64c22074be11`
-  (21,197 bytes). A v4 lifecycle repair (repeated-init listener leak)
-  is open as Track A of the v4 bundle.
-- MAIN (js/main.js and owned modules): v3 + test-label correction
-  harvested and verified.
-- HABITS (js/habits.js) and PROGRESS (js/visuals/progress-summary.js):
-  v3 + habit-contract correction harvested and verified.
-- FEEDS (js/feeds.js): v3 repair **blocked**. The old session never
-  delivered its v3 source through the API; the published branch
-  `codex-feeds-fix-10139058434333404787` is a stale pre-v3 artifact and
-  must not be used as the repair. A single replacement session is
-  authorized as Track B of the v4 bundle, starting from the verified
-  Source Packet v2 feeds.js (SHA-256
-  `8f712a052eaa6240a847280212e3be5bf7f0622fe129a609e39841fe318f7047c`).
-
-## v4 bundle (active, marker CODEX-DASHBOARD-PHASES-V4-20261021)
-
-- Track A: STORE listener-lifecycle repair (Jules STORE session).
-- Track B: FEEDS replacement session (one new session, plan approval
-  required before work).
-- Track C: source assembly and import closure on a `codex/` review
-  branch (Muse assembler, sole writer of the assembled branch).
-- Track D: independent QA preparation under `qa/v4/` (no production edits).
-- Track E: test runner, documentation and asset packaging (this record).
-- Phase 2 (ordered integration and full browser acceptance) starts only
-  after a complete Phase 1 source is retrievable. No merge and no
-  deployment are part of this bundle.
+- Frozen commit: `4883425958486fdc62897b2270097dd98f40d0fa` — the
+  V14B QA correction (deterministic native barrier in
+  `qa/v4/places-browser.spec.mjs` only; production tree byte-identical
+  to the V14 frozen commit `0c2d779`).
+- STORE carries the V14 transactional repair authority
+  (`claimAdoptionRepair`, commit `f8074d8`). Current js/store.js
+  SHA-256 `7f77e9effc6556c1e27e995da5db3835bb6da40564241cad7a7a669a5578dd95`.
+  Current js/feeds.js SHA-256
+  `b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88`
+  (the FEEDS replacement source; the old v3 session stays parked as
+  evidence and its stale branch must not be used).
+- Local browser acceptance on the frozen commit: PASS. Coordinator
+  gate (Chromium 156.0.8078.4, Node v24.20.0): Node 14/14, browser
+  29 total / 28 required PASS, negative 17/17, runId `735ae833`.
+  Evidence: `docs/review/evidence/v14b/`.
+- Codex independent verification at head `1696d37` (installed Chrome
+  155.0.8059.85, Node 24.19, isolated native IndexedDB/BroadcastChannel,
+  invented records): full gate exit 0, 28 required PASS, negative
+  17/17, runId `efb3274d`; a separate places run also passed with a
+  real stale proof. The V14B Chrome local regression is closed.
+- Host acceptance: NOT RUN. No release approval exists. The
+  shippable claim withdrawn on 2026-10-20 stays withdrawn.
+- Remaining complete-app acceptance gaps are listed in
+  docs/ACCEPTANCE.md (post-V14B section): host acceptance, the
+  every-form and time matrices, maps UI CRUD, college markup,
+  investments round-trip, populated explorers, chart offline
+  fallback, isolated keyboard/modal cases, and the asset-manifest
+  packaging check.
 
 ## Backend status: UNACCEPTED
 
@@ -75,10 +78,13 @@ Workers/D1 behavior, Free CPU limits and unattended updates remain
 ## Open decisions and blockers
 
 - FEEDS v3 bytes are unrecoverable from the old session (recorded
-  blocker). Track B replaces the work with new provenance; it must not
-  be labeled the v3 artifact.
+  blocker). The replacement source is integrated with its own
+  provenance and is not labeled the v3 artifact. The old session
+  stays parked as evidence; do not message it or harvest from it.
 - The old GitHub Pages workflow (`.github/workflows/pages.yml`) remains
   a named packaging gate until reviewed. Preparing an asset allowlist
   does not authorize running or replacing it.
-- Full browser acceptance (Phase 2) has not run. Nothing in this
-  document is a shippable claim.
+- Local browser acceptance has run on the frozen commit for the
+  registry cases (see docs/ACCEPTANCE.md). Complete-app acceptance
+  has not: the gaps listed there remain open, host acceptance is
+  NOT RUN, and nothing in this document is a shippable claim.
