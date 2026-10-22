@@ -79,7 +79,7 @@ Case rules:
 | `boundary` | Provenance label. A `PASS` on a required id counts only with boundary `REAL-BROWSER`. A mock or static pass does not satisfy the gate. |
 | `detail` | Non-empty string. Names the observed result. For `FAIL` and `NOT RUN` it names the failure or the missing precondition. |
 
-## Required case set (25 ids)
+## Required case set (26 ids)
 
 Standing acceptance ids (registry: `docs/ACCEPTANCE.md`):
 
@@ -98,6 +98,14 @@ V5 regression ids (bundle CODEX-DASHBOARD-PHASES-V5-20261021):
 V8 regression ids (bundle V8-JOBS-OTHER, 2026-10-22):
 
 - `V8-JOBS-OTHER` (owner: qa/v4/jobs-browser.spec.mjs)
+
+V10 regression ids (bundle CODEX-V10-20261022):
+
+- `V10-RECOVERY-01` (owner: qa/v4/recovery-browser.spec.mjs) — native
+  IndexedDB poisoned-record adoption: a record with malformed collection
+  entries loads without a page error, the poisoned record is adopted
+  across tabs, and quarantined entries survive an unrelated save,
+  export and reload.
 
 Gate rule: every required id present, at `PASS`, boundary
 `REAL-BROWSER`, in a report whose commit, hashes, runId and timestamp
