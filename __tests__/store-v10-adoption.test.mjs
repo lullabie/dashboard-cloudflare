@@ -533,6 +533,325 @@ async function runTests() {
         snap15.jobs.length === 1 && snap15.jobs[0].id === 'job-v12-f' && snap15.goals.length === 1 && snap15.goals[0].title === 'V12 newer goal',
         { jobs: snap15.jobs, goals: snap15.goals });
 
+    // --- 16. V13: place-ID repair at adoption (AG-2 runtime defect,
+    // Codex V13). Adoption must run the existing place-ID migration:
+    // a place whose id is missing, invalid, or a later duplicate gets a
+    // minted id, exactly as the import path already does. Without it a
+    // place with no valid id cannot be edited or deleted (consumers
+    // match by id) and an edit becomes a create. Each replaced id is
+    // recorded as provenance { path:'places', index:<raw index>,
+    // value:<original object> } in the quarantine.
+    const validPlaceId = (id) => typeof id === 'string' && id.startsWith('place_') && id.length > 10;
+    const allValidUniqueIds = (places) => {
+        const ids = places.map((p) => p.id);
+        return ids.every(validPlaceId) && new Set(ids).size === ids.length;
+    };
+    const placeOkV13 = { id: 'place_1234567890', title: 'Valid Place', lat: 43.1, lng: -79.1 };
+    const noIdPlace = { title: 'Old valid place', lat: 43, lng: -79 };
+    const shortIdPlace = { id: 'short', title: 'Short Id Place' };
+    const numericIdPlace = { id: 12345, title: 'Numeric Id Place' };
+    const dupIdPlace = { id: 'place_1234567890', title: 'Duplicate Id Place' };
+    const priorQ16 = { path: 'goals', index: 0, value: null };
+    dbState = { 1: record(baseData({
+        places: [placeOkV13, noIdPlace, null, shortIdPlace, numericIdPlace, dupIdPlace]
+    }), { quarantine: [priorQ16], v13Key: 'keep-v13' }) };
+    const init16 = await store.initStore();
+    check('V13 initial load of malformed place ids stays ready', init16.status === 'ready', init16);
+    const snap16 = store.getData();
+    check('V13 adoption keeps place count and order, partition still drops the null entry',
+        snap16.places.length === 5 &&
+        snap16.places.map((p) => p.title).join('|') === 'Valid Place|Old valid place|Short Id Place|Numeric Id Place|Duplicate Id Place',
+        snap16.places);
+    check('V13 valid unique place id is left untouched, other fields intact',
+        snap16.places[0].id === 'place_1234567890' && snap16.places[0].lat === 43.1 && snap16.places[0].lng === -79.1,
+        snap16.places[0]);
+    check('V13 missing, invalid and duplicate place ids are minted valid and unique at adoption',
+        allValidUniqueIds(snap16.places) && snap16.places[4].id !== 'place_1234567890',
+        snap16.places.map((p) => p.id));
+    check('V13 initial-load repair is durable: disk record carries repaired ids',
+        dbState[1].data.places.length === 5 && allValidUniqueIds(dbState[1].data.places) &&
+        dbState[1].data.places.map((p) => p.id).join('|') === snap16.places.map((p) => p.id).join('|'),
+        dbState[1].data.places);
+    const diskQ16 = quarantineOf(dbState[1].envelopeExtras);
+    const prov16 = (diskQ16 || []).filter((e) => e.path === 'places' && e.value && typeof e.value === 'object');
+    check('V13 provenance records each replaced id verbatim at its raw index',
+        prov16.length === 4 &&
+        prov16.some((e) => e.index === 1 && JSON.stringify(e.value) === JSON.stringify(noIdPlace)) &&
+        prov16.some((e) => e.index === 3 && JSON.stringify(e.value) === JSON.stringify(shortIdPlace)) &&
+        prov16.some((e) => e.index === 4 && JSON.stringify(e.value) === JSON.stringify(numericIdPlace)) &&
+        prov16.some((e) => e.index === 5 && JSON.stringify(e.value) === JSON.stringify(dupIdPlace)),
+        prov16);
+    check('V13 no provenance for the untouched place; partition null still quarantined at raw index 2',
+        !prov16.some((e) => e.index === 0) &&
+        qEntries(diskQ16, 'places').some((e) => e.index === 2 && e.value === null),
+        diskQ16);
+    check('V13 prior quarantine and unknown extras survive place-id repair',
+        Array.isArray(diskQ16) && qEntries(diskQ16, 'goals').some((e) => e.index === 0 && e.value === null) &&
+        dbState[1].envelopeExtras.v13Key === 'keep-v13',
+        dbState[1].envelopeExtras);
+
+    // --- 17. V13: repaired ids are stable. Reload and an unrelated
+    // save re-adopt the repaired record: valid ids mint nothing new
+    // and provenance is not duplicated.
+    const repairedIds16 = dbState[1].data.places.map((p) => p.id);
+    await store.initStore(); // reload
+    const snap17 = store.getData();
+    check('V13 reload keeps the exact repaired ids (no re-mint)',
+        snap17.places.map((p) => p.id).join('|') === repairedIds16.join('|'), snap17.places.map((p) => p.id));
+    lastDownloadText = null;
+    await store.exportData();
+    let env17 = null;
+    try { env17 = JSON.parse(lastDownloadText); } catch (e) {}
+    const q17 = env17 && quarantineOf(env17);
+    check('V13 export carries the repaired ids and the same provenance (no duplicates)',
+        !!env17 && env17.data.places.map((p) => p.id).join('|') === repairedIds16.join('|') &&
+        Array.isArray(q17) && q17.filter((e) => e.path === 'places' && e.value && typeof e.value === 'object').length === 4,
+        { data: env17 && env17.data.places, q17 });
+    const snap17b = store.getData();
+    snap17b.habits.push({ name: 'V13 unrelated habit' });
+    const save17 = await store.saveData(snap17b);
+    const diskQ17 = quarantineOf(dbState[1].envelopeExtras);
+    check('V13 unrelated save keeps repaired ids and provenance unchanged',
+        save17.committed === true &&
+        dbState[1].data.places.map((p) => p.id).join('|') === repairedIds16.join('|') &&
+        Array.isArray(diskQ17) && diskQ17.filter((e) => e.path === 'places' && e.value && typeof e.value === 'object').length === 4,
+        { save17, extras: dbState[1].envelopeExtras });
+
+    // --- 18. V13: BroadcastChannel adoption repairs place ids in
+    // memory, and an export before any save carries the repaired ids
+    // plus provenance, without writing to disk.
+    dbState = { 1: record(baseData({ places: [{ id: 'place_basevalid1', title: 'Base Valid' }] })) };
+    await store.initStore();
+    const bcNoId = { title: 'BC No Id', lat: 44, lng: -80 };
+    const bcValid = { id: 'place_bcvalid123', title: 'BC Valid' };
+    dbState[1] = record(baseData({ places: [bcNoId, bcValid] }),
+        { v13BcKey: 'keep-bc13' }, dbState[1].revision + 1);
+    const bc18 = liveBc();
+    check('V13 cross-tab channel handler registered', !!bc18, bcInstances.length);
+    if (bc18) { bc18.onmessage({ data: 'sync' }); await sleep(60); }
+    const snap18 = store.getData();
+    check('V13 BC adoption repairs the missing place id, valid neighbour untouched',
+        snap18.places.length === 2 && validPlaceId(snap18.places[0].id) && snap18.places[0].title === 'BC No Id' &&
+        snap18.places[1].id === 'place_bcvalid123',
+        snap18.places);
+    const diskBefore18 = JSON.stringify(dbState[1]);
+    lastDownloadText = null;
+    await store.exportData();
+    check('V13 export before save performs no disk write', JSON.stringify(dbState[1]) === diskBefore18, dbState[1]);
+    let env18 = null;
+    try { env18 = JSON.parse(lastDownloadText); } catch (e) {}
+    const q18 = env18 && quarantineOf(env18);
+    // The disk record is still raw in this window, so export derives
+    // its own repair from the selected disk record (V11 rule): the
+    // exported id is a fresh valid mint, not necessarily the in-memory
+    // adoption mint. Identity stabilizes at the next authoritative
+    // save, which persists the in-memory mint (asserted next).
+    check('V13 export before save carries a valid repaired id and the provenance entry',
+        !!env18 && env18.data.places.length === 2 &&
+        validPlaceId(env18.data.places[0].id) && env18.data.places[0].title === 'BC No Id' &&
+        env18.data.places[1].id === 'place_bcvalid123' &&
+        Array.isArray(q18) && q18.length === 1 && q18[0].path === 'places' && q18[0].index === 0 &&
+        JSON.stringify(q18[0].value) === JSON.stringify(bcNoId) && env18.v13BcKey === 'keep-bc13',
+        { env18, q18 });
+    const snap18b = store.getData();
+    snap18b.goals.push({ title: 'V13 BC follow-up' });
+    const save18 = await store.saveData(snap18b);
+    lastDownloadText = null;
+    await store.exportData();
+    let env18b = null;
+    try { env18b = JSON.parse(lastDownloadText); } catch (e) {}
+    check('V13 next authoritative save persists the in-memory mint; export is then stable',
+        save18.committed === true &&
+        dbState[1].data.places[0].id === snap18.places[0].id &&
+        !!env18b && env18b.data.places[0].id === snap18.places[0].id &&
+        (quarantineOf(dbState[1].envelopeExtras) || []).some((e) => e.path === 'places' && e.index === 0 &&
+            JSON.stringify(e.value) === JSON.stringify(bcNoId)),
+        { save18, disk: dbState[1].data.places, env18b: env18b && env18b.data.places });
+
+    // --- 19. V13: conflict adoption repairs place ids too, and the
+    // provenance survives the next authoritative save.
+    const snap19 = store.getData();
+    const conflictNoId = { title: 'Conflict No Id' };
+    const conflictDupA = { id: 'place_conflict1', title: 'Conflict First' };
+    const conflictDupB = { id: 'place_conflict1', title: 'Conflict Second' };
+    dbState[1] = record(baseData({ places: [conflictNoId, conflictDupA, conflictDupB] }), {}, dbState[1].revision + 5);
+    let conflictErr19 = null;
+    try { await store.saveData(snap19); } catch (e) { conflictErr19 = e; }
+    check('V13 CAS mismatch still rejects with Conflict', !!conflictErr19 && conflictErr19.message.includes('Conflict'), conflictErr19);
+    const snap19b = store.getData();
+    check('V13 conflict adoption repairs missing and duplicate ids, first duplicate keeps its id',
+        snap19b.places.length === 3 && validPlaceId(snap19b.places[0].id) &&
+        snap19b.places[1].id === 'place_conflict1' && validPlaceId(snap19b.places[2].id) &&
+        snap19b.places[2].id !== 'place_conflict1',
+        snap19b.places);
+    const snap19c = store.getData();
+    snap19c.goals.push({ title: 'V13 after conflict' });
+    const save19 = await store.saveData(snap19c);
+    const diskQ19 = quarantineOf(dbState[1].envelopeExtras);
+    const prov19 = (diskQ19 || []).filter((e) => e.path === 'places');
+    check('V13 conflict-adopted provenance survives the next save verbatim',
+        save19.committed === true && prov19.length === 2 &&
+        prov19.some((e) => e.index === 0 && JSON.stringify(e.value) === JSON.stringify(conflictNoId)) &&
+        prov19.some((e) => e.index === 2 && JSON.stringify(e.value) === JSON.stringify(conflictDupB)) &&
+        allValidUniqueIds(dbState[1].data.places),
+        { save19, extras: dbState[1].envelopeExtras, places: dbState[1].data.places });
+
+    // --- 20. V13: CAS invariant + the Codex edit-as-create repro at
+    // harness level. A snapshot minted before an adoption repair holds
+    // the pre-adoption {generation, revision} token; saveData must
+    // reject it as a conflict instead of letting it overwrite the
+    // repaired state, and a snapshot can never carry a malformed id
+    // because every adoption repairs before any snapshot is minted.
+    const codexPlace = { title: 'Old valid place', lat: 43, lng: -79 };
+    dbState = { 1: record(baseData({ places: [codexPlace] }), {}, 1, 'gen-v13-cas') };
+    const init20 = await store.initStore();
+    check('V13 CAS setup: initial load repairs the Codex fixture durably',
+        init20.status === 'ready' && dbState[1].data.places.length === 1 && validPlaceId(dbState[1].data.places[0].id),
+        dbState[1].data.places);
+    const snapPre = store.getData(); // token {gen-v13-cas, 1}
+    check('V13 tracked snapshot carries only the repaired id',
+        snapPre.places.length === 1 && validPlaceId(snapPre.places[0].id), snapPre.places);
+    // A stale foreign writer re-poisons the disk at a new revision.
+    const codexPlaceB = { title: 'Old valid place B', lat: 43, lng: -79 };
+    dbState[1] = record(baseData({ places: [codexPlaceB] }), {}, 2, 'gen-v13-cas');
+    const bc20 = liveBc();
+    if (bc20) { bc20.onmessage({ data: 'sync' }); await sleep(60); }
+    const snapMid = store.getData();
+    check('V13 BC adoption of the re-poisoned record repairs its place id in memory',
+        snapMid.places.length === 1 && snapMid.places[0].title === 'Old valid place B' && validPlaceId(snapMid.places[0].id),
+        snapMid.places);
+    let staleErr = null;
+    try { await store.saveData(snapPre); } catch (e) { staleErr = e; }
+    check('V13 pre-repair snapshot save is rejected as a conflict (CAS holds)',
+        !!staleErr && staleErr.message.includes('Conflict') && dbState[1].revision === 2,
+        { staleErr, revision: dbState[1].revision });
+    // The Codex repro: edit the single adopted place by id. Before the
+    // fix this produced a second record (before 1, after 2).
+    const snapEdit = store.getData();
+    check('V13 adopted state still holds exactly one place before the edit',
+        snapEdit.places.length === 1, snapEdit.places);
+    const editId = snapEdit.places[0].id;
+    snapEdit.places[0].title = 'Edited old place';
+    const saveEdit = await store.saveData(snapEdit);
+    check('V13 edit updates the one record: count stays 1, id stable, title updated',
+        saveEdit.committed === true && dbState[1].data.places.length === 1 &&
+        dbState[1].data.places[0].title === 'Edited old place' && dbState[1].data.places[0].id === editId &&
+        allValidUniqueIds(dbState[1].data.places),
+        { saveEdit, places: dbState[1].data.places });
+    const diskQ20 = quarantineOf(dbState[1].envelopeExtras);
+    check('V13 provenance of the re-poisoned repair survives the edit save',
+        Array.isArray(diskQ20) &&
+        diskQ20.some((e) => e.path === 'places' && e.index === 0 && JSON.stringify(e.value) === JSON.stringify(codexPlaceB)),
+        diskQ20);
+    // Roundtrip: the exported backup reimports with the same stable id;
+    // import mints nothing new now that the id is valid.
+    lastDownloadText = null;
+    await store.exportData();
+    let importRes20 = null;
+    store.importData(lastDownloadText, (res) => { importRes20 = res; });
+    await sleep(120);
+    const snap20 = store.getData();
+    check('V13 export -> strict import roundtrip keeps the same repaired id',
+        !!importRes20 && importRes20.committed === true &&
+        snap20.places.length === 1 && snap20.places[0].id === editId && snap20.places[0].title === 'Edited old place',
+        { importRes20, places: snap20.places });
+
+    // --- 21. V13: BroadcastChannel adoption persists its place-ID
+    // repair exactly once (Lane B browser evidence, phases 4-5: a
+    // memory-only repair leaves the disk record poisoned, and the
+    // next reload re-mints a different id). A Proxy counts record
+    // writes so "exactly once" is measured, not assumed.
+    let placeWrites = 0;
+    dbState = new Proxy(
+        { 1: record(baseData({ places: [{ id: 'place_durablebase', title: 'Durable Base' }] })) },
+        { set: (t, p, v) => { if (p === '1' || p === 1) placeWrites++; return Reflect.set(t, p, v); } }
+    );
+    const init21 = await store.initStore();
+    check('V13 durable-repair setup: clean init writes nothing',
+        init21.status === 'ready' && placeWrites === 0, { init21, placeWrites });
+    const snapPreBc21 = store.getData(); // token of the base record
+    const bcAddedPlace = { title: 'BC Added Place', lat: 45, lng: -81 };
+    dbState[1] = record(baseData({
+        places: [{ id: 'place_durablebase', title: 'Durable Base' }, bcAddedPlace]
+    }), { durableKey: 'keep-durable' }, dbState[1].revision + 1);
+    const adoptedRev21 = dbState[1].revision;
+    placeWrites = 0; // discount this test's own foreign write
+    const bc21 = liveBc();
+    check('V13 durable cross-tab channel handler registered', !!bc21, bcInstances.length);
+    if (bc21) { bc21.onmessage({ data: 'sync' }); await sleep(150); }
+    const snap21 = store.getData();
+    check('V13 BC adoption exposes the appended place with a minted id',
+        snap21.places.length === 2 && snap21.places[1].title === 'BC Added Place' && validPlaceId(snap21.places[1].id),
+        snap21.places);
+    const mint21 = snap21.places[1].id;
+    check('V13 BC adoption repair is durable: disk carries the same minted id and provenance',
+        dbState[1].data.places.length === 2 && dbState[1].data.places[1].id === mint21 &&
+        (quarantineOf(dbState[1].envelopeExtras) || []).some((e) => e.path === 'places' && e.index === 1 &&
+            JSON.stringify(e.value) === JSON.stringify(bcAddedPlace)) &&
+        dbState[1].envelopeExtras.durableKey === 'keep-durable',
+        { places: dbState[1].data.places, extras: dbState[1].envelopeExtras });
+    check('V13 BC adoption repair persisted exactly once, revision kept',
+        placeWrites === 1 && dbState[1].revision === adoptedRev21, { placeWrites, revision: dbState[1].revision });
+    let staleErr21 = null;
+    try { await store.saveData(snapPreBc21); } catch (e) { staleErr21 = e; }
+    check('V13 pre-repair snapshot cannot overwrite the persisted BC repair',
+        !!staleErr21 && staleErr21.message.includes('Conflict') &&
+        dbState[1].data.places.length === 2 && dbState[1].data.places[1].id === mint21 && placeWrites === 1,
+        { staleErr21, places: dbState[1].data.places, placeWrites });
+
+    // --- 22. V13: after the persisted BC repair, a reload adopts the
+    // repaired record itself: no re-mint, no new write, no duplicate
+    // provenance. The repaired id is stable.
+    await store.initStore(); // reload
+    const snap22 = store.getData();
+    check('V13 reload after persisted BC repair keeps the same id (no re-mint, no extra write)',
+        snap22.places.length === 2 && snap22.places[1].id === mint21 && placeWrites === 1,
+        { places: snap22.places, placeWrites });
+    lastDownloadText = null;
+    await store.exportData();
+    let env22 = null;
+    try { env22 = JSON.parse(lastDownloadText); } catch (e) {}
+    const q22 = env22 && quarantineOf(env22);
+    check('V13 export after reload keeps the stable id and single provenance entry',
+        !!env22 && env22.data.places[1].id === mint21 &&
+        Array.isArray(q22) && q22.filter((e) => e.path === 'places').length === 1,
+        { env22: env22 && env22.data.places, q22 });
+    dbState = { 1: dbState[1] }; // drop the counting Proxy for later sections
+
+    // --- 23. V13: the repair write is CAS-guarded. If the disk record
+    // advances past the adopted record before the guarded write reads
+    // it, the write is withheld: the newer record is never clobbered,
+    // and its own adoption path governs. The poll observes the
+    // adoption in memory, then advances the disk in the same tick,
+    // before the guarded write's re-read can run.
+    dbState = { 1: record(baseData({ places: [{ id: 'place_guardbase1', title: 'Guard Base' }] })) };
+    await store.initStore();
+    const guardPoisoned = { title: 'Guard Poisoned' };
+    dbState[1] = record(baseData({
+        places: [{ id: 'place_guardbase1', title: 'Guard Base' }, guardPoisoned]
+    }), {}, dbState[1].revision + 1);
+    const adoptedRev23 = dbState[1].revision;
+    const bc23 = liveBc();
+    if (bc23) { bc23.onmessage({ data: 'sync' }); }
+    let adopted23 = false;
+    for (let i = 0; i < 100 && !adopted23; i++) {
+        await sleep(1);
+        adopted23 = store.getData().places.some((p) => p.title === 'Guard Poisoned' && validPlaceId(p.id));
+    }
+    check('V13 guard setup: poisoned record adopted and repaired in memory', adopted23, store.getData().places);
+    const newerPlace = { id: 'place_guardnew1', title: 'Newer Valid' };
+    dbState[1] = record(baseData({ places: [newerPlace] }), { guardKey: 'newer' }, adoptedRev23 + 1);
+    const newerRev23 = dbState[1].revision;
+    await sleep(150);
+    check('V13 guarded repair write is withheld when disk advanced: newer record untouched',
+        dbState[1].revision === newerRev23 && dbState[1].data.places.length === 1 &&
+        dbState[1].data.places[0].id === 'place_guardnew1' &&
+        dbState[1].envelopeExtras.guardKey === 'newer' && !dbState[1].envelopeExtras.quarantine,
+        dbState[1]);
+    check('V13 memory keeps the adopted repair even though its write was withheld',
+        store.getData().places.some((p) => p.title === 'Guard Poisoned' && validPlaceId(p.id)),
+        store.getData().places);
+
     console.log(`\nTests completed: ${passed} passed, ${failed} failed.`);
     if (failed > 0) process.exit(1);
 }
