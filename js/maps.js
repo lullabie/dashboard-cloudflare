@@ -43,9 +43,21 @@ export function deletePlace(placeId) {
     }
 }
 
+function parseCoordinate(value) {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        // Decimal notation only: Number() alone would also accept 0x/0b/0o
+        // prefixed strings, which are not coordinates.
+        if (!/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(trimmed)) return NaN;
+        return Number(trimmed);
+    }
+    return NaN;
+}
+
 export function isValidCoordinate(lat, lng) {
-    const latFloat = parseFloat(lat);
-    const lngFloat = parseFloat(lng);
+    const latFloat = parseCoordinate(lat);
+    const lngFloat = parseCoordinate(lng);
     if (!Number.isFinite(latFloat) || !Number.isFinite(lngFloat)) return false;
     if (latFloat < -90 || latFloat > 90) return false;
     if (lngFloat < -180 || lngFloat > 180) return false;
