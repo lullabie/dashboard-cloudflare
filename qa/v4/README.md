@@ -1,71 +1,75 @@
-# qa/v4 — Track D QA preparation
+# qa/v4 — browser QA specs
 
-This directory is QA preparation only. It does not change production files and it is not an acceptance registry.
-The existing acceptance document remains the single registry for state and source-criterion references.
-`TEST-POINTS.md` in this directory is only the harness-to-TEST-ID map.
+Real-browser specs for the dashboard. Each case runs in Firefox through
+Playwright against one tree served from a local temporary origin.
+Data is invented only. A PASS here is browser evidence for the named
+tree only. It is not release acceptance and not host acceptance.
+
+## Setup (the documented route)
+
+```sh
+cd qa/v4
+npm install
+npx playwright install firefox
+```
+
+`package.json` pins `playwright` to 1.64.1 ($0, official package).
+`npm install` creates `node_modules/` in this directory. Do not commit
+`node_modules/`.
+
+Specs resolve Playwright in this order:
+
+1. `PLAYWRIGHT_MODULE` env (storage spec also reads `QA_PLAYWRIGHT_CORE`).
+2. Bare `playwright` / `playwright-core` import. This resolves the pinned
+   install above.
+3. Fallbacks only: a repo-local `node_modules/playwright-core`, the Python
+   Playwright driver package, the npx cache, a cached Firefox binary
+   under `~/.cache/ms-playwright`. A cache hit is never the sole
+   reproducible setup.
 
 ## Run
 
-From a repo checkout that contains this directory:
-
 ```sh
-node qa/v4/acceptance.spec.mjs
+node qa/v4/ui-browser.spec.mjs [--tree <path>] [--cases <id,id>]
+node qa/v4/storage-browser.spec.mjs [--tree <path>]
+node qa/v4/feeds-browser.spec.mjs [--tree <path>]
 ```
 
-From the current workspace staging location:
+Tree under test, first match wins: `--tree`, `DASH_TREE` (UI spec),
+`QA_TREE_ROOT`, then the checkout that contains the spec (this directory
+is `<repo>/qa/v4/`, so the default tree is the repo root).
+Each spec prints the tree path and the actual SHA-256 of `js/store.js`
+and `js/feeds.js` read from that tree. No hash is pinned. No source is
+substituted. No patch is applied.
 
-```sh
-node ~/workspace/goals/personal-life-dashboard/hidden_files/codex-v4-20261021/qa-v4/acceptance.spec.mjs
+Exit code: nonzero when any case is FAIL or NOT RUN. When no Playwright
+or no browser resolves, every required case reports NOT RUN and the
+process exits nonzero.
+
+## Machine results
+
+Each spec writes `browser-results.json` next to itself, or the path
+named by `--results-out` / `QA_RESULTS_OUT`. Interim shape:
+
+```json
+{ "testedTree": "<abs path>", "storeSha256": "<hex|MISSING>",
+  "feedsSha256": "<hex|MISSING>",
+  "results": [ { "id": "...", "status": "PASS|FAIL|NOT RUN",
+                 "boundary": "REAL-BROWSER", "detail": "..." } ] }
 ```
 
-Expected skeleton behavior:
-
-- Harness/shape groups can PASS under their stated MOCK or SHAPE boundary.
-- Browser-required groups report `NOT RUN` with the missing precondition.
-- A `PASS` in this skeleton is not integrated acceptance.
+One file holds one spec run. Run each spec with its own
+`--results-out` path until Lane E lands. Lane E's shared schema and
+aggregation writer supersede this interim shape.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `TEST-POINTS.md` | Harness-to-TEST-ID map only |
-| `acceptance.spec.mjs` | Node-runnable spec skeleton; one assertion group per TEST-ID |
-| `storage-faults.mjs` | Test-only fault hooks: BroadcastChannel construction failure, post-commit notification failure, IndexedDB abort/denial/quota doubles, readiness-gate model |
-| `feed-responses.mjs` | Deterministic fake feed responses with barriers, oversize body, malformed XML and timeout support |
-| `dashboard-invented.json` | Invented fixture records only; fake names and `example.com` domains |
-| `README.md` | This inventory and evidence rules |
-
-## Existing lane-test inventory
-
-Inventory source: patch-carried test files found under `hidden_files/codex-v3-20261021/` and `hidden_files/codex-v4-20261021/` on 2026-10-21.
-Boundary labels: `STATIC` = source/text assertions only; `MOCK` = executed with Node, VM, IndexedDB or DOM doubles; `REAL-BROWSER` = real browser evidence.
-
-| Source patch | Test file | Boundary | Notes |
-|---|---|---|---|
-| `store-v3-20261021-completed.patch` | `__tests__/store-v3-validation.test.js` | MOCK | Store v3 validation under Node doubles |
-| `store-v3-20261021-completed.patch` | `__tests__/store_validation.test.js` | MOCK | Legacy store acceptance runner; requires the store.js path argument |
-| `store-v3-correction-20261021-1622.patch` | `__tests__/store-v3-bc-validation.test.js` | MOCK | BroadcastChannel listener validation under doubles |
-| `store-v3-correction-20261021-1622.patch` | `__tests__/store-v3-validation.test.js` | MOCK | Store v3 validation under Node doubles |
-| `store-v3-correction-20261021-1622.patch` | `__tests__/store_validation.test.js` | MOCK | Legacy store acceptance runner; requires the store.js path argument |
-| `store-v3-correction2-20261021-1657.patch` | `__tests__/store-v3-bc-validation.test.js` | MOCK | BroadcastChannel listener validation under doubles |
-| `store-v3-correction2-20261021-1657.patch` | `__tests__/store-v3-degraded-save.test.js` | MOCK | Degraded/recovery suite under Node doubles; Codex rerun reported 7/7 mock pass for the new storage degraded/recovery suite |
-| `store-v3-correction2-20261021-1657.patch` | `__tests__/store-v3-validation.test.js` | MOCK | Store v3 validation under Node doubles |
-| `store-v3-correction2-20261021-1657.patch` | `__tests__/store_validation.test.js` | MOCK | Legacy store acceptance runner; requires the store.js path argument |
-| `main-v3-20261021-completed.patch` | `test-main-v3.js` | STATIC | Static source assertions; unsupported accessibility/motion pass strings were later corrected |
-| `main-v3-correction-20261021-1617.patch` | `test-main-v3.js` | STATIC | Static source assertions; accessibility/motion cases read `NOT EXECUTED`, not PASS |
-| `habits-v3-20261021-completed.patch` | `habits-v3.test.js` | MOCK / STATIC | Habits v3 checks: one static case and executed Node-mock cases were reported for the lane |
-| `progress-v3-20261021-completed.patch` | `progress-v3-test.js` | MOCK | Progress summary checks under Node/DOM doubles |
-| `progress-v3-correction-20261021-1619.patch` | `progress-v3-test.js` | MOCK | Progress habit-contract correction checks under Node/DOM doubles |
-| `feeds-v3-20261021-completed.patch` | `test_refresh_persistence.js` | MOCK | Stale pre-v3 API artifact in the old FEEDS session output; it is not the unavailable repaired v3 file and not v4 evidence |
-| `codex-v4-20261021/` at inventory time | none found | — | The v4 folder held briefs, the dispatch record and a session-create response; no patch-carried lane test files were present yet |
-
-No lane test in this inventory is labeled `REAL-BROWSER`. Real-browser evidence remains a Phase 2 item on the frozen assembled commit.
-
-## Evidence rules
-
-- Keep generated screenshots and logs in external versioned evidence storage. Do not commit them to the repo.
-- For each executed case, record: commit, source hash where relevant, exact command or steps, runner/browser versions, origin and database isolation, boundary (`STATIC`, `MOCK` or `REAL-BROWSER`), expected result, observed result and `PASS` / `FAIL` / `NOT RUN`.
-- Preserve prior failed results. Do not overwrite a failed run with a later pass.
-- Do not relabel a mock, static or harness result as browser acceptance.
-- Do not use the stale FEEDS API patch or the stale published FEEDS branch as repaired v3/v4 source.
-- Use invented records only. Keep credentials and private payloads out of source, tests, screenshots and messages.
+| `ui-browser.spec.mjs` | TEST-UI-001, TEST-UI-002a–j, V5-STORE-02 |
+| `storage-browser.spec.mjs` | TEST-STORE-001–005, V5-STORE-01 |
+| `feeds-browser.spec.mjs` | TEST-FEEDS-001–003, V5-FEEDS-01–03 |
+| `feed-responses.mjs` | Repo-local fixture builders (RSS, oversize, malformed) imported by the feeds spec |
+| `storage-faults.mjs` | Fault hooks for the acceptance skeleton |
+| `dashboard-invented.json` | Invented fixture records only |
+| `package.json` | Pinned Playwright dependency for this directory |
