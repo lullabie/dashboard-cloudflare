@@ -48,6 +48,7 @@ export const REQUIRED_BROWSER_IDS = [
   'V8-JOBS-OTHER',
   'V10-RECOVERY-01',
   'V11-RECOVERY-02',
+  'V13-PLACES-01',
 ];
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
