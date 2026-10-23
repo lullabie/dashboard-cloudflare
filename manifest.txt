@@ -1,0 +1,13 @@
+Modified Files:
+- js/goals.js
+- tests/goals-card.test.mjs
+
+SHA256 Hashes:
+$(sha256sum js/goals.js)
+$(sha256sum tests/goals-card.test.mjs)
+
+Test Commands Used:
+node tests/goals-card.test.mjs
+
+Explicit Test Results:
+PASS: DOM nodes created dynamically and event listeners attached properly.
