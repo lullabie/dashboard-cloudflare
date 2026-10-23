@@ -1161,14 +1161,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Sort descending by date
         allNewsItems.sort((a, b) => new Date(b.published) - new Date(a.published));
         
+        // Visible load-error state: name the feeds that failed, in text.
+        const erroredSources = (newsData.sources || []).filter(s => s.status === 'error');
+        if (erroredSources.length > 0) {
+            newsStatusBar.textContent = `${erroredSources.length} feed(s) failed to load: ${erroredSources.map(s => s.name).join(', ')}. Cached items, if any, are still shown below. See Manage Sources for details.`;
+        }
+
         newsContainer.replaceChildren();
         if (allNewsItems.length === 0) {
-            
+
         const emptyDiv = document.createElement('div');
         emptyDiv.className = 'empty-state';
-        emptyDiv.textContent = 'No news found for this category.';
+        const totalNewsItems = (newsData.cache || []).length + (newsData.manual || []).length;
+        emptyDiv.textContent = totalNewsItems === 0
+            ? 'No news items yet. News is fetched in your browser from the feeds you add — no live news backend is connected yet. Use Manage Sources to add a feed, then Refresh Feeds to load it, or + Add Manual to add an item by hand.'
+            : 'No news found for this category.';
         newsContainer.appendChild(emptyDiv);
-    
+
         } else {
             allNewsItems.forEach(item => {
                 newsContainer.appendChild(createNewsCard(item, item.isManual, async (id) => {

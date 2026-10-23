@@ -310,7 +310,7 @@ export function createHabitCard(habit, onEdit, onToggleArchive, onToggleCheckin)
     const metrics = calculateMetrics(habit);
     const occurrences = habit.occurrences || {};
     
-    let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
+    let timelineHtml = '<div class="timeline">';
     for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
@@ -322,18 +322,18 @@ export function createHabitCard(habit, onEdit, onToggleArchive, onToggleCheckin)
         const isDone = isValidCheckIn(checkVal);
         const late = isLate(checkVal, dateStr);
         
-        let bgColor = 'var(--surface-hover)';
         let titleLabel = 'Missed';
-        
+        // Status color is a class toggle (CSP: no inline style strings).
+        let statusClass = '';
+
         if (isDone) {
-            bgColor = late ? '#f59e0b' : 'var(--accent-color)';
+            statusClass = late ? ' is-late' : ' is-done';
             titleLabel = late ? 'Late' : 'Done';
         }
-        
+
         const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
         timelineHtml += `
-            <div class="timeline-day" data-date="${dateStr}" title="${dayLabel}: ${titleLabel}" 
-                 style="flex: 1; height: 24px; border-radius: var(--radius-sm); background-color: ${bgColor}; cursor: pointer; border: 1px solid var(--border-color);"
+            <div class="timeline-day${statusClass}" data-date="${dateStr}" title="${dayLabel}: ${titleLabel}"
                  role="button" tabindex="0" aria-label="Toggle check-in for ${dateStr}" aria-pressed="${isDone}">
             </div>
         `;
@@ -341,21 +341,21 @@ export function createHabitCard(habit, onEdit, onToggleArchive, onToggleCheckin)
     timelineHtml += '</div>';
 
     card.innerHTML = `
-        <div class="card-header" style="align-items: center;">
-            <div style="display: flex; gap: 1rem; align-items: center; width: 100%;">
-                <div style="flex-grow: 1;">
+        <div class="card-header card-header-center">
+            <div class="header-main">
+                <div class="header-grow">
                     <div class="card-title">${escapeHtml(habit.title)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                    <div class="meta-text">
                         On-time: ${metrics.done} | Late: ${metrics.late} | Eligible: ${metrics.eligible}
                     </div>
                 </div>
             </div>
-            ${habit.status === 'archived' ? '<span class="badge" style="margin-left: auto;">Archived</span>' : ''}
+            ${habit.status === 'archived' ? '<span class="badge badge-push">Archived</span>' : ''}
         </div>
         <div class="card-body">
             ${timelineHtml}
         </div>
-        <div class="card-footer" style="justify-content: flex-end;">
+        <div class="card-footer card-footer-end">
             <div class="card-actions">
                 <button class="icon-btn edit-btn" aria-label="Edit Habit">Edit</button>
                 <button class="icon-btn archive-btn" aria-label="${habit.status === 'active' ? 'Archive' : 'Restore'} Habit">${habit.status === 'active' ? 'Archive' : 'Restore'}</button>

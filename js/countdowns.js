@@ -83,11 +83,17 @@ function createCountdownTile(deadline) {
                 <span>Zone: ${TIMEZONE}</span>
             </div>
             <div class="progress-bar-container">
-                <div class="progress-bar" style="width: ${progressPercent}%; background-color: ${daysLeft < 0 ? 'var(--danger-color)' : 'var(--accent-color)'}"></div>
+                <div class="progress-bar"></div>
             </div>
         </div>
     `;
-    
+
+    // CSP: dynamic width goes through CSSOM, clamped to a finite 0-100.
+    const bar = card.querySelector('.progress-bar');
+    const safePercent = Number.isFinite(progressPercent) ? Math.min(100, Math.max(0, progressPercent)) : 0;
+    bar.style.width = safePercent + '%';
+    if (daysLeft < 0) bar.classList.add('is-overdue');
+
     return card;
 }
 
@@ -123,15 +129,11 @@ function createRadarRow(deadline) {
     
     const row = document.createElement('div');
     row.className = 'radar-row card';
-    // Style radar rows to be more compact
-    row.style.flexDirection = 'row';
-    row.style.justifyContent = 'space-between';
-    row.style.alignItems = 'center';
-    
+
     row.innerHTML = `
-        <div style="display: flex; flex-direction: column;">
-            <span style="font-weight: 600;">${deadline.title}</span>
-            <span style="font-size: 0.75rem; color: var(--text-secondary);">Due: ${deadline.date}</span>
+        <div class="radar-text">
+            <span class="radar-title">${deadline.title}</span>
+            <span class="radar-due">Due: ${deadline.date}</span>
         </div>
         <span class="badge ${colorClass}">${statusText}</span>
     `;

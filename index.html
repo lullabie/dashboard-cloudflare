@@ -80,9 +80,9 @@
 
         <section id="view-college" class="view hidden">
             
-    <details open style="margin-bottom: 1rem;">
-        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Academic Workload Chart</summary>
-        <div style="position: relative; height: 300px; width: 100%;">
+    <details open class="chart-details">
+        <summary class="chart-summary">Academic Workload Chart</summary>
+        <div class="chart-wrap">
             <canvas id="college-chart"></canvas>
         </div>
         <div class="sr-only" id="college-chart-alt" tabindex="0">Table showing upcoming assignments and exams due by week.</div>
@@ -111,16 +111,16 @@
                 <button id="btn-create-job" class="primary-btn">+ Add Job</button>
             </div>
             
-    <details open style="margin-bottom: 1rem;">
-        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Jobs Pipeline Chart</summary>
-        <div style="position: relative; height: 300px; width: 100%;">
+    <details open class="chart-details">
+        <summary class="chart-summary">Jobs Pipeline Chart</summary>
+        <div class="chart-wrap">
             <canvas id="jobs-chart"></canvas>
         </div>
         <div class="sr-only" id="jobs-chart-alt" tabindex="0">Bar chart of current job application statuses.</div>
     </details>
             <div id="jobs-explorer-root"></div>
-            <div class="filter-bar" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                <select id="job-status-filter" class="form-control" style="padding: 0.5rem; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--text-primary); border: 1px solid var(--border-color);">
+            <div class="filter-bar">
+                <select id="job-status-filter" class="form-control">
                     <option value="all">All Statuses</option>
                     <option value="applied">Applied</option>
                     <option value="interview">Interview</option>
@@ -128,7 +128,7 @@
                     <option value="rejected">Rejected</option>
                     <option value="other">Other</option>
                 </select>
-                <select id="job-location-filter" class="form-control" style="padding: 0.5rem; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--text-primary); border: 1px solid var(--border-color);">
+                <select id="job-location-filter" class="form-control">
                     <option value="all">All Locations</option>
                     <option value="remote-canada">Remote Canada</option>
                     <option value="toronto">Toronto</option>
@@ -144,13 +144,13 @@
                 <h2>Investments</h2>
                 <button id="btn-create-investment" class="primary-btn">+ New Watchlist Item</button>
             </div>
-            <div style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+            <div class="disclaimer-note">
                 <em>Not financial advice. No trade execution. For informational purposes only.</em>
             </div>
             
-    <details open style="margin-bottom: 1rem;">
-        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-color); margin-bottom: 0.5rem;">Watchlist Chart</summary>
-        <div style="position: relative; height: 300px; width: 100%;">
+    <details open class="chart-details">
+        <summary class="chart-summary">Watchlist Chart</summary>
+        <div class="chart-wrap">
             <canvas id="investments-chart"></canvas>
         </div>
         <div class="sr-only" id="investments-chart-alt" tabindex="0">Grouped bar chart comparing manual entry and current prices of watchlist items.</div>
@@ -169,10 +169,10 @@
                 </div>
             </div>
             
-            <div id="news-status-bar" style="margin-bottom: 1rem; font-size: 0.875rem; color: var(--text-secondary);"></div>
+            <div id="news-status-bar" class="status-bar"></div>
 
-            <div class="filter-bar" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                <select id="news-category-filter" class="form-control" style="padding: 0.5rem; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--text-primary); border: 1px solid var(--border-color);">
+            <div class="filter-bar">
+                <select id="news-category-filter" class="form-control">
                     <option value="all">All Categories</option>
                     <option value="global">Global</option>
                     <option value="canada">Canada</option>
@@ -205,9 +205,9 @@
                 <div class="button-group">
                     <button id="btn-export" class="primary-btn">Export Data</button>
                     <button id="btn-import-trigger" class="secondary-btn">Import Data</button>
-                    <input type="file" id="import-file" accept=".json" style="display: none;">
+                    <input type="file" id="import-file" accept=".json" class="visually-hidden-input">
                 </div>
-                <div class="recovery-group" style="margin-top: 1rem;">
+                <div class="recovery-group">
                     <h4>Recovery Options</h4>
                     <p>If a save failed or there was a cross-tab conflict, use these recovery options.</p>
                     <div class="button-group">
@@ -370,13 +370,13 @@
         </div>
     </div>
 
-    <div id="news-sources-list-modal" class="modal hidden" style="z-index: 90;">
-        <div class="modal-content" style="max-width: 800px;">
+    <div id="news-sources-list-modal" class="modal hidden modal-elevated">
+        <div class="modal-content modal-content-wide">
             <div class="view-header">
                 <h2>News Sources</h2>
                 <button id="btn-add-source" class="primary-btn">+ Add Source</button>
             </div>
-            <div id="news-sources-container" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 400px; overflow-y: auto;"></div>
+            <div id="news-sources-container" class="sources-list"></div>
             <div class="modal-actions">
                 <button type="button" class="secondary-btn" id="btn-close-sources-list-modal">Close</button>
             </div>

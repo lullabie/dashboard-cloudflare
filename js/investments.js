@@ -102,24 +102,24 @@ export function createInvestmentCard(investment, onEdit, onDelete) {
     const current = parseNumber(inv.current);
 
     card.innerHTML = `
-        <div class="card-header" style="align-items: center; justify-content: space-between;">
+        <div class="card-header card-header-center">
             <div class="card-title">${ticker}</div>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">Manual Watchlist</div>
+            <div class="meta-text">Manual Watchlist</div>
         </div>
         <div class="card-body">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <div class="price-row">
                 <div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Entry Price</div>
+                    <div class="meta-text">Entry Price</div>
                     <div>$${entry.toFixed(2)}</div>
                 </div>
                 <div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Current Price</div>
+                    <div class="meta-text">Current Price</div>
                     <div>$${current.toFixed(2)}</div>
                 </div>
             </div>
-            ${notes ? `<div class="card-notes" style="font-size: 0.875rem; margin-top: 0.5rem;">${notes}</div>` : ''}
+            ${notes ? `<div class="card-notes">${notes}</div>` : ''}
         </div>
-        <div class="card-footer" style="justify-content: flex-end;">
+        <div class="card-footer card-footer-end">
             <div class="card-actions">
                 <button class="icon-btn edit-btn">Edit</button>
                 <button class="icon-btn delete-btn">Delete</button>

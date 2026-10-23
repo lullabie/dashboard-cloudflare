@@ -186,19 +186,19 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     const strokeDashoffset = circumference - (progress / 100) * circumference;
     
     const ringHtml = `
-        <div style="position: relative; width: 40px; height: 40px; flex-shrink: 0;">
-            <svg width="40" height="40" viewBox="0 0 40 40" style="transform: rotate(-90deg);">
+        <div class="goal-ring">
+            <svg class="goal-ring-svg" width="40" height="40" viewBox="0 0 40 40">
                 <circle cx="20" cy="20" r="16" fill="none" stroke="var(--border-color)" stroke-width="4"></circle>
-                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--accent-color)" stroke-width="4" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" style="transition: stroke-dashoffset 0.5s ease;"></circle>
+                <circle class="goal-ring-progress" cx="20" cy="20" r="16" fill="none" stroke="var(--accent-color)" stroke-width="4" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}"></circle>
             </svg>
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold;">
+            <div class="goal-ring-label">
                 ${progress}%
             </div>
         </div>
     `;
 
     // History Timeline (last 7 days)
-    let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
+    let timelineHtml = '<div class="timeline">';
     for (let i = 6; i >= 0; i--) {
         const d = new Date(todayStr + 'T12:00:00Z');
         d.setUTCDate(d.getUTCDate() - i);
@@ -208,16 +208,13 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
         const rawStatus = occurrences[dateStr];
         const status = (rawStatus === 'done' || rawStatus === 'missed' || rawStatus === 'late') ? rawStatus : 'none';
         
-        let bgColor = 'var(--surface-hover)'; // default 'none'
-        if (status === 'done') bgColor = 'var(--accent-color)';
-        else if (status === 'missed') bgColor = 'var(--danger-color)';
-        else if (status === 'late') bgColor = '#f59e0b'; // amber
-        
+        // Status color is a class toggle (CSP: no inline style strings).
+        const statusClass = status === 'none' ? '' : ` is-${status}`;
+
         // Tooltip using title attribute for now
         const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
         timelineHtml += `
-            <div class="timeline-day" data-date="${dateStr}" title="${dayLabel}: ${status}" 
-                 style="flex: 1; height: 24px; border-radius: var(--radius-sm); background-color: ${bgColor}; cursor: pointer; border: 1px solid var(--border-color);">
+            <div class="timeline-day${statusClass}" data-date="${dateStr}" title="${dayLabel}: ${status}">
             </div>
         `;
     }
@@ -225,24 +222,24 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
 
     // HTML Construction
     card.innerHTML = `
-        <div class="card-header" style="align-items: center;">
-            <div style="display: flex; gap: 1rem; align-items: center; width: 100%;">
+        <div class="card-header card-header-center">
+            <div class="header-main">
                 ${ringHtml}
-                <div style="flex-grow: 1;">
+                <div class="header-grow">
                     <div class="card-title">${escapeHtml(goal.title)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${doneDays} / ${target} done</div>
+                    <div class="meta-text">${doneDays} / ${target} done</div>
                 </div>
             </div>
-            ${goal.status === 'archived' ? '<span class="badge" style="margin-left: auto;">Archived</span>' : ''}
+            ${goal.status === 'archived' ? '<span class="badge badge-push">Archived</span>' : ''}
         </div>
         <div class="card-body">
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
-                <span style="font-weight: bold; color: var(--text-primary);">${streak > 0 ? streak + ' 🔥' : ''}</span>
+            <div class="streak-row">
+                <span class="streak-value">${streak > 0 ? streak + ' 🔥' : ''}</span>
             </div>
             ${timelineHtml}
             ${goal.showNotes && goal.notes ? `<div class="card-notes">${escapeHtml(goal.notes)}</div>` : ''}
         </div>
-        <div class="card-footer" style="justify-content: flex-end;">
+        <div class="card-footer card-footer-end">
             <div class="card-actions">
                 <button class="icon-btn edit-btn">Edit</button>
                 <button class="icon-btn archive-btn">${goal.status === 'active' ? 'Archive' : 'Restore'}</button>
