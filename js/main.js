@@ -2,17 +2,177 @@
  * App Entry Point and UI Orchestration
  */
 
-import { initStore, exportData, importData } from './store.js';
+import { initStore, exportData, importData, exportDraft } from './store.js';
 import { renderCountdowns, renderRadar } from './countdowns.js';
 import { fetchAndRenderIndicators } from './indicators.js';
 import { getGoals, saveGoal, toggleArchive, createGoalCard, cycleOccurrence } from './goals.js';
+import { getHabits, saveHabit, toggleArchive as toggleHabitArchive, toggleCheckin as toggleHabitCheckin, createHabitCard } from './habits.js';
 import { getPlaces, savePlace, deletePlace, getMapEmbedUrl, createPlaceElement } from './maps.js';
 import { getCollegeData, saveCollegeItem, deleteCollegeItem, createCollegeCard } from './college.js';
 import { getJobs, saveJob, deleteJob, createJobCard } from './jobs.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+export function isOtherJobStatus(status) {
+    return !['applied', 'interview', 'offer', 'rejected'].includes(status);
+}
+
+export function createChartJobFilterHandler(selectElement, refreshCallback) {
+    return function handleChartJobFilter(status) {
+        if (!['applied', 'interview', 'offer', 'rejected', 'other'].includes(status)) return;
+        if (selectElement.value === status) return;
+        selectElement.value = status;
+        refreshCallback();
+    };
+}
+
+import { getInvestments, saveInvestment, deleteInvestment, createInvestmentCard } from './investments.js';
+import { renderJobsChart, renderCollegeChart, renderInvestmentsChart } from './visuals/charts.js';
+import { renderChartExplorer, destroyChartExplorer } from './visuals/chart-explorer.js';
+import { renderDeadlineTimeline, destroyDeadlineTimeline } from './visuals/deadline-timeline.js';
+import { renderProgressSummary, destroyProgressSummary } from './visuals/progress-summary.js';
+import { getNewsData, getSources, saveSource, deleteSource, getManualEntries, saveManualEntry, deleteManualEntry, refreshFeeds, createNewsCard, createSourceCard } from './feeds.js';
+
+
+let lastFocusedElement = null;
+let renderEpoch = 0;
+function getActiveView() { return document.querySelector('.view.active')?.id; }
+
+const dialogStack = [];
+
+function trapFocus(modalEl) {
+    const focusableSelectors = 'a[href]:not([disabled]), button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    
+    modalEl.addEventListener('keydown', function(e) {
+        const focusableEls = Array.from(modalEl.querySelectorAll(focusableSelectors)).filter(el => {
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+        });
+        if (focusableEls.length === 0) return;
+        
+        const firstFocusableEl = focusableEls[0];
+        const lastFocusableEl = focusableEls[focusableEls.length - 1];
+
+        if (e.key === 'Tab' || e.keyCode === 9) {
+            if (e.shiftKey) { 
+                if (document.activeElement === firstFocusableEl || document.activeElement === modalEl) {
+                    lastFocusableEl.focus();
+                    e.preventDefault();
+                }
+            } else { 
+                if (document.activeElement === lastFocusableEl) {
+                    firstFocusableEl.focus();
+                    e.preventDefault();
+                }
+            }
+        } else if (e.key === 'Escape' || e.keyCode === 27) {
+            // This handler owns Escape for its modal. Stop propagation
+            // so the document handler does not close a second layer.
+            closeDialog(modalEl.id);
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+}
+
+function openDialog(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    dialogStack.push({
+        id: modalId,
+        previousFocus: document.activeElement
+    });
+    
+    modal.classList.remove('hidden');
+    
+    if (dialogStack.length === 1) {
+        const appContent = document.getElementById('app-content');
+        const appHeader = document.querySelector('.app-header');
+        if (appContent) appContent.setAttribute('inert', '');
+        if (appHeader) appHeader.setAttribute('inert', '');
+    } else {
+        const prevDialogId = dialogStack[dialogStack.length - 2].id;
+        const prevModal = document.getElementById(prevDialogId);
+        if (prevModal) prevModal.setAttribute('inert', '');
+    }
+    
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    if (!modal._focusTrapped) {
+        trapFocus(modal);
+        modal._focusTrapped = true;
+    }
+}
+
+function closeDialog(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    if (dialogStack.length > 0 && dialogStack[dialogStack.length - 1].id === modalId) {
+        const state = dialogStack.pop();
+        modal.classList.add('hidden');
+        
+        if (dialogStack.length === 0) {
+            const appContent = document.getElementById('app-content');
+            const appHeader = document.querySelector('.app-header');
+            if (appContent) appContent.removeAttribute('inert');
+            if (appHeader) appHeader.removeAttribute('inert');
+        } else {
+            const prevDialogId = dialogStack[dialogStack.length - 1].id;
+            const prevModal = document.getElementById(prevDialogId);
+            if (prevModal) prevModal.removeAttribute('inert');
+        }
+        
+        if (state.previousFocus) {
+            state.previousFocus.focus();
+        }
+    } else {
+        modal.classList.add('hidden');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
     // Initialize Data
-    initStore();
+    let storeStatus;
+    try {
+        storeStatus = await initStore();
+    } catch (e) {
+        storeStatus = { status: 'degraded', error: e.message };
+    }
+
+    if (storeStatus && storeStatus.status === 'degraded') {
+        const banner = document.createElement('div');
+        banner.style.backgroundColor = 'var(--danger-color, #ef4444)';
+        banner.style.color = '#fff';
+        banner.style.padding = '0.5rem';
+        banner.style.textAlign = 'center';
+        banner.style.position = 'sticky';
+        banner.style.top = '0';
+        banner.style.zIndex = '9999';
+        banner.textContent = 'Storage is degraded: ' + (storeStatus.error || 'Unknown error') + '. Saves will be rejected.';
+        document.body.prepend(banner);
+    }
+
+    // Runs a store mutation, surfacing quota failures and cross-tab
+    // conflicts to the user instead of failing silently.
+    async function runMutation(promise, after) {
+        if (storeStatus && storeStatus.status === 'degraded') {
+            alert('Save rejected: Storage is in a degraded state.');
+            return;
+        }
+        let result;
+        try {
+            result = await promise;
+        } catch (e) {
+            console.error('Save failed:', e);
+            alert('Could not save: ' + (e && e.message ? e.message : e));
+            return false;
+        }
+        if (result && result.conflict) {
+            alert('Another tab changed the data first. Your latest change was downloaded as a draft; please re-apply it.');
+        }
+        if (after) after();
+        return true;
+    }
     
     // UI Elements - Navigation
     const navBtns = document.querySelectorAll('.nav-btn');
@@ -78,10 +238,66 @@ document.addEventListener('DOMContentLoaded', () => {
     const jobStatusFilter = document.getElementById('job-status-filter');
     const jobLocationFilter = document.getElementById('job-location-filter');
 
+    // Habits Elements
+    const habitModal = document.getElementById('habit-modal');
+    const habitModalTitle = document.getElementById('habit-modal-title');
+    const habitForm = document.getElementById('habit-form');
+    const habitIdInput = document.getElementById('habit-id');
+    const habitNameInput = document.getElementById('habit-name');
+    const btnCreateHabit = document.getElementById('btn-create-habit');
+    const btnCancelHabitModal = document.getElementById('btn-cancel-habit-modal');
+
+    // Investments Elements
+    const investmentModal = document.getElementById('investment-modal');
+    const investmentModalTitle = document.getElementById('investment-modal-title');
+    const investmentForm = document.getElementById('investment-form');
+    const investmentIdInput = document.getElementById('investment-id');
+    const investmentTickerInput = document.getElementById('investment-ticker');
+    const investmentEntryInput = document.getElementById('investment-entry');
+    const investmentCurrentInput = document.getElementById('investment-current');
+    const investmentNotesInput = document.getElementById('investment-notes');
+    const btnCreateInvestment = document.getElementById('btn-create-investment');
+    const btnCancelInvestmentModal = document.getElementById('btn-cancel-investment-modal');
+    const investmentsContainer = document.getElementById('investments-container');
 
     // Settings Actions
     const btnExport = document.getElementById('btn-export');
+    const btnExportDraft = document.getElementById('btn-export-draft');
+    const btnReloadLatest = document.getElementById('btn-reload-latest');
     const importFileInput = document.getElementById('import-file');
+    
+    // UI Elements - News View
+    const newsContainer = document.getElementById('news-container');
+    const newsCategoryFilter = document.getElementById('news-category-filter');
+    const btnRefreshNews = document.getElementById('btn-refresh-news');
+    const btnManageSources = document.getElementById('btn-manage-sources');
+    const btnAddManualNews = document.getElementById('btn-add-manual-news');
+    const newsStatusBar = document.getElementById('news-status-bar');
+
+    // UI Elements - News Modals
+    const newsSourceModal = document.getElementById('news-source-modal');
+    const newsSourceForm = document.getElementById('news-source-form');
+    const newsSourceModalTitle = document.getElementById('news-source-modal-title');
+    const newsSourceIdInput = document.getElementById('news-source-id');
+    const newsSourceNameInput = document.getElementById('news-source-name');
+    const newsSourceUrlInput = document.getElementById('news-source-url');
+    const newsSourceCategoryInput = document.getElementById('news-source-category');
+    const btnCancelNewsSourceModal = document.getElementById('btn-cancel-news-source-modal');
+
+    const newsSourcesListModal = document.getElementById('news-sources-list-modal');
+    const newsSourcesContainer = document.getElementById('news-sources-container');
+    const btnAddSource = document.getElementById('btn-add-source');
+    const btnCloseSourcesListModal = document.getElementById('btn-close-sources-list-modal');
+
+    const newsManualModal = document.getElementById('news-manual-modal');
+    const newsManualForm = document.getElementById('news-manual-form');
+    const newsManualModalTitle = document.getElementById('news-manual-modal-title');
+    const newsManualIdInput = document.getElementById('news-manual-id');
+    const newsManualTitleInput = document.getElementById('news-manual-title');
+    const newsManualUrlInput = document.getElementById('news-manual-url');
+    const newsManualDateInput = document.getElementById('news-manual-date');
+    const newsManualCategoryInput = document.getElementById('news-manual-category');
+    const btnCancelNewsManualModal = document.getElementById('btn-cancel-news-manual-modal');
 
     // --- Routing / Navigation ---
     navBtns.forEach(btn => {
@@ -97,6 +313,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleNavClick(btn) {
+            renderEpoch++;
+            const activeView = getActiveView();
+            // Destroy outgoing
+            if (activeView === 'view-today') {
+                const el = document.getElementById('progress-summary-root');
+                if (el && typeof destroyProgressSummary === 'function') destroyProgressSummary(el);
+            }
+            if (activeView === 'view-college') {
+                const el = document.getElementById('college-deadline-timeline-root');
+                if (el && typeof destroyDeadlineTimeline === 'function') destroyDeadlineTimeline(el);
+            }
+            if (activeView === 'view-jobs') {
+                const el = document.getElementById('jobs-explorer-root');
+                if (el && typeof destroyChartExplorer === 'function') destroyChartExplorer(el);
+            }
+            if (activeView === 'view-investments') {
+                const el = document.getElementById('investments-explorer-root');
+                if (el && typeof destroyChartExplorer === 'function') destroyChartExplorer(el);
+            }
+
             // Update active state on buttons
             navBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -158,15 +394,61 @@ document.addEventListener('DOMContentLoaded', () => {
         exportData();
     });
 
+    btnExportDraft.addEventListener('click', () => {
+        exportDraft();
+    });
+
+    btnReloadLatest.addEventListener('click', () => {
+        const confirmed = confirm('This will reload the latest data from storage and discard any unsaved draft in memory. Continue?');
+        if (confirmed) {
+            window.location.reload();
+        }
+    });
+
     importFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
+        e.target.value = ''; // Support cancel/rejection/repeat selection
         if (file) {
             importData(file, () => {
                 refreshUI();
-                importFileInput.value = ''; // Reset input
             });
         }
     });
+    const btnImportTrigger = document.getElementById('btn-import-trigger');
+    if (btnImportTrigger) {
+        btnImportTrigger.addEventListener('click', () => importFileInput.click());
+    }
+
+    // --- V15 stale-modal guard -------------------------------------
+    // A full-record modal captures a baseline snapshot of the record
+    // when it opens. At submit, the current record is compared with
+    // the baseline: if another tab (or a cross-tab sync) changed or
+    // deleted the record meanwhile, the submit is blocked with an
+    // explicit conflict message and the modal stays open with the
+    // draft intact. Without this, a stale form silently attaches to
+    // the fresh record: the save merges the form over the current
+    // record, so fields the user never re-touched revert to the
+    // values from when the modal opened (Codex V15, defect 2).
+    const modalBaselines = new Map();
+    function captureModalBaseline(kind, record) {
+        modalBaselines.set(kind, record ? JSON.stringify(record) : null);
+    }
+    function clearModalBaseline(kind) {
+        modalBaselines.delete(kind);
+    }
+    function modalBaselineConflict(kind, id, currentRecords) {
+        if (!modalBaselines.has(kind)) return false;
+        const base = modalBaselines.get(kind);
+        if (base === null || !id) return false; // create form: no baseline record
+        const current = (currentRecords || []).find(r => r && r.id === id);
+        if (!current) return true; // deleted meanwhile
+        return JSON.stringify(current) !== base;
+    }
+    function staleModalBlock(kind, id, currentRecords, label) {
+        if (!modalBaselineConflict(kind, id, currentRecords)) return false;
+        alert('This ' + label + ' changed in another tab while you were editing. Your draft is still in the form and nothing was saved. Close the form to discard the draft, or reopen the record to see the current values.');
+        return true;
+    }
 
     // --- Goal Modal Operations ---
     function openModal(goal = null) {
@@ -182,19 +464,21 @@ document.addEventListener('DOMContentLoaded', () => {
             goalForm.reset();
             goalIdInput.value = '';
         }
-        modal.classList.remove('hidden');
+        captureModalBaseline('goal', goal);
+        openDialog('goal-modal');
         goalTitleInput.focus();
     }
 
     function closeModal() {
-        modal.classList.add('hidden');
+        clearModalBaseline('goal');
+        closeDialog('goal-modal');
         goalForm.reset();
     }
 
     btnCreateGoal.addEventListener('click', () => openModal());
     btnCancelModal.addEventListener('click', closeModal);
 
-    goalForm.addEventListener('submit', (e) => {
+    goalForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const goalData = {
             id: goalIdInput.value || null,
@@ -204,9 +488,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showNotes: goalShowNotesInput.checked
         };
         
-        saveGoal(goalData);
-        closeModal();
-        refreshUI();
+        if (staleModalBlock('goal', goalData.id, getGoals(), 'goal')) return;
+        await runMutation(saveGoal(goalData), () => { closeModal(); refreshUI(); });
     });
 
     // --- Place Modal Operations ---
@@ -224,12 +507,14 @@ document.addEventListener('DOMContentLoaded', () => {
             placeIdInput.value = '';
             placeColorInput.value = '#a3e635';
         }
-        placeModal.classList.remove('hidden');
+        captureModalBaseline('place', place);
+        openDialog('place-modal');
         placeNameInput.focus();
     }
 
     function closePlaceModal() {
-        placeModal.classList.add('hidden');
+        clearModalBaseline('place');
+        closeDialog('place-modal');
         placeForm.reset();
     }
 
@@ -248,21 +533,23 @@ document.addEventListener('DOMContentLoaded', () => {
             jobModalTitle.textContent = 'Add Job';
             jobForm.reset();
             jobIdInput.value = '';
-            jobDateInput.value = new Date().toISOString().split('T')[0];
+            jobDateInput.value = '';
         }
-        jobModal.classList.remove('hidden');
+        captureModalBaseline('job', job);
+        openDialog('job-modal');
         jobCompanyInput.focus();
     }
 
     function closeJobModal() {
-        jobModal.classList.add('hidden');
+        clearModalBaseline('job');
+        closeDialog('job-modal');
         jobForm.reset();
     }
 
     btnCreateJob.addEventListener('click', () => openJobModal());
     btnCancelJobModal.addEventListener('click', closeJobModal);
 
-    jobForm.addEventListener('submit', (e) => {
+    jobForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const jobData = {
             id: jobIdInput.value || null,
@@ -270,16 +557,91 @@ document.addEventListener('DOMContentLoaded', () => {
             role: jobRoleInput.value.trim(),
             status: jobStatusInput.value,
             location: jobLocationInput.value,
-            date: jobDateInput.value,
+            date: jobDateInput.value || (() => {
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/Toronto',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).formatToParts(new Date());
+                const year = parts.find(p => p.type === 'year').value;
+                const month = parts.find(p => p.type === 'month').value;
+                const day = parts.find(p => p.type === 'day').value;
+                return `${year}-${month}-${day}`;
+            })(),
             notes: jobNotesInput.value.trim()
         };
-        saveJob(jobData);
-        closeJobModal();
-        refreshUI();
+        if (staleModalBlock('job', jobData.id, getJobs(), 'job application')) return;
+        await runMutation(saveJob(jobData), () => { closeJobModal(); refreshUI(); });
     });
 
     jobStatusFilter.addEventListener('change', () => refreshUI());
+    const handleChartJobFilter = createChartJobFilterHandler(jobStatusFilter, refreshUI);
     jobLocationFilter.addEventListener('change', () => refreshUI());
+
+    // --- Investment Modal Operations ---
+    function openInvestmentModal(investment = null) {
+        if (investment) {
+            investmentModalTitle.textContent = 'Edit Investment';
+            investmentIdInput.value = investment.id;
+            investmentTickerInput.value = investment.ticker;
+            investmentEntryInput.value = investment.entry;
+            investmentCurrentInput.value = investment.current;
+            investmentNotesInput.value = investment.notes || '';
+        } else {
+            investmentModalTitle.textContent = 'Add Investment';
+            investmentForm.reset();
+            investmentIdInput.value = '';
+        }
+        captureModalBaseline('investment', investment);
+        openDialog('investment-modal');
+        investmentTickerInput.focus();
+    }
+
+    function closeInvestmentModal() {
+        clearModalBaseline('investment');
+        closeDialog('investment-modal');
+        investmentForm.reset();
+    }
+
+    btnCreateInvestment.addEventListener('click', () => openInvestmentModal());
+    btnCancelInvestmentModal.addEventListener('click', closeInvestmentModal);
+
+    // saveInvestment reads fresh state inside its Web Lock. A second
+    // submit during the first save thus creates a second record. This
+    // flag blocks re-entry while one investment save is in flight.
+    let investmentSaveInFlight = false;
+    investmentForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (investmentSaveInFlight) return;
+        const investmentData = {
+            id: investmentIdInput.value || null,
+            ticker: investmentTickerInput.value.trim(),
+            entry: parseFloat(investmentEntryInput.value),
+            current: parseFloat(investmentCurrentInput.value),
+            notes: investmentNotesInput.value.trim()
+        };
+        if (staleModalBlock('investment', investmentData.id, getInvestments(), 'investment')) return;
+        investmentSaveInFlight = true;
+        try {
+            await runMutation(saveInvestment(investmentData), () => { closeInvestmentModal(); refreshUI(); });
+        } finally {
+            investmentSaveInFlight = false;
+        }
+    });
+
+    // --- Habit Event Listeners ---
+    btnCreateHabit.addEventListener('click', () => openHabitModal());
+    btnCancelHabitModal.addEventListener('click', closeHabitModal);
+    habitForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const habitData = {
+            id: habitIdInput.value || null,
+            title: habitNameInput.value
+        };
+        if (staleModalBlock('habit', habitData.id, getHabits(), 'habit')) return;
+        await runMutation(saveHabit(habitData), () => { closeHabitModal(); refreshUI(); });
+    });
 
     // --- College Modal Operations ---
     function openCollegeModal(item = null, type = 'timetable') {
@@ -303,47 +665,213 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             collegeItemTypeInput.disabled = false;
         }
-        collegeModal.classList.remove('hidden');
+        openDialog('college-modal');
         collegeItemTitleInput.focus();
     }
 
     function closeCollegeModal() {
-        collegeModal.classList.add('hidden');
+        closeDialog('college-modal');
         collegeForm.reset();
     }
 
     btnCreateCollegeItem.addEventListener('click', () => openCollegeModal());
     btnCancelCollegeModal.addEventListener('click', closeCollegeModal);
 
-    collegeForm.addEventListener('submit', (e) => {
+    collegeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const type = collegeItemTypeInput.value;
         const itemData = {
             id: collegeItemIdInput.value || null,
             title: collegeItemTitleInput.value.trim(),
-            date: collegeItemDateInput.value,
+            date: collegeItemDateInput.value || (() => {
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/Toronto',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).formatToParts(new Date());
+                const year = parts.find(p => p.type === 'year').value;
+                const month = parts.find(p => p.type === 'month').value;
+                const day = parts.find(p => p.type === 'day').value;
+                return `${year}-${month}-${day}`;
+            })(),
             notes: collegeItemNotesInput.value.trim()
         };
         
-        saveCollegeItem(type, itemData);
-        closeCollegeModal();
-        refreshUI();
+        await runMutation(saveCollegeItem(type, itemData), () => { closeCollegeModal(); refreshUI(); });
     });
 
-    // Escape closes any open modal
+    // --- News Modals and Logic ---
+    function openNewsSourcesListModal() {
+        openDialog('news-sources-list-modal');
+        renderNewsSourcesList();
+    }
+
+    function closeNewsSourcesListModal() {
+        closeDialog('news-sources-list-modal');
+    }
+
+    async function renderNewsSourcesList() {
+        newsSourcesContainer.replaceChildren();
+        const sources = await getSources();
+        if (sources.length === 0) {
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'No sources configured.';
+        newsSourcesContainer.appendChild(emptyDiv);
+    
+        } else {
+            sources.forEach(source => {
+                newsSourcesContainer.appendChild(createSourceCard(
+                    source,
+                    (s) => { openNewsSourceModal(s); },
+                    async (id) => { await runMutation(deleteSource(id), () => { renderNewsSourcesList(); refreshUI(); }); }
+                ));
+            });
+        }
+    }
+
+    function openNewsSourceModal(source = null) {
+        if (source) {
+            newsSourceModalTitle.textContent = 'Edit Source';
+            newsSourceIdInput.value = source.id;
+            newsSourceNameInput.value = source.name;
+            newsSourceUrlInput.value = source.url;
+            newsSourceCategoryInput.value = source.category;
+        } else {
+            newsSourceModalTitle.textContent = 'Add Source';
+            newsSourceForm.reset();
+            newsSourceIdInput.value = '';
+        }
+        openDialog('news-source-modal');
+        newsSourceNameInput.focus();
+    }
+
+    function closeNewsSourceModal() {
+        closeDialog('news-source-modal');
+        newsSourceForm.reset();
+    }
+
+    function openNewsManualModal(entry = null) {
+        if (entry) {
+            newsManualModalTitle.textContent = 'Edit Manual Entry';
+            newsManualIdInput.value = entry.id;
+            newsManualTitleInput.value = entry.title;
+            newsManualUrlInput.value = entry.url;
+            newsManualDateInput.value = entry.published.split('T')[0];
+            newsManualCategoryInput.value = entry.category;
+        } else {
+            newsManualModalTitle.textContent = 'Add Manual Entry';
+            newsManualForm.reset();
+            newsManualIdInput.value = '';
+            newsManualDateInput.value = '';
+        }
+        openDialog('news-manual-modal');
+        newsManualTitleInput.focus();
+    }
+
+    function closeNewsManualModal() {
+        closeDialog('news-manual-modal');
+        newsManualForm.reset();
+    }
+
+    btnManageSources.addEventListener('click', () => openNewsSourcesListModal());
+    btnCloseSourcesListModal.addEventListener('click', () => closeNewsSourcesListModal());
+    if (btnAddSource) btnAddSource.addEventListener('click', () => openNewsSourceModal());
+    btnCancelNewsSourceModal.addEventListener('click', () => closeNewsSourceModal());
+    
+    newsSourceForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const saveSourcePromise = saveSource({
+            id: newsSourceIdInput.value || null,
+            name: newsSourceNameInput.value.trim(),
+            url: newsSourceUrlInput.value.trim(),
+            category: newsSourceCategoryInput.value
+        });
+        await runMutation(saveSourcePromise, () => { closeNewsSourceModal(); renderNewsSourcesList(); refreshUI(); });
+    });
+
+    btnAddManualNews.addEventListener('click', () => openNewsManualModal());
+    btnCancelNewsManualModal.addEventListener('click', () => closeNewsManualModal());
+
+    newsManualForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const saveManualPromise = saveManualEntry({
+            id: newsManualIdInput.value || null,
+            title: newsManualTitleInput.value.trim(),
+            url: newsManualUrlInput.value.trim(),
+            published: newsManualDateInput.value || (() => {
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/Toronto',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).formatToParts(new Date());
+                const year = parts.find(p => p.type === 'year').value;
+                const month = parts.find(p => p.type === 'month').value;
+                const day = parts.find(p => p.type === 'day').value;
+                return `${year}-${month}-${day}`;
+            })(),
+            category: newsManualCategoryInput.value
+        });
+        await runMutation(saveManualPromise, () => { closeNewsManualModal(); refreshUI(); });
+    });
+
+    btnRefreshNews.addEventListener('click', async () => {
+        btnRefreshNews.disabled = true;
+        btnRefreshNews.textContent = 'Refreshing...';
+        newsStatusBar.textContent = 'Refreshing feeds...';
+        try {
+            await refreshFeeds((msg) => { newsStatusBar.textContent = msg; });
+            newsStatusBar.textContent = 'Refresh complete at ' + new Date().toLocaleTimeString();
+        } catch (error) {
+            newsStatusBar.textContent = 'Refresh failed: ' + error.message;
+        } finally {
+            btnRefreshNews.disabled = false;
+            btnRefreshNews.textContent = 'Refresh Feeds';
+            refreshUI();
+        }
+    });
+
+    newsCategoryFilter.addEventListener('change', () => refreshUI());
+
+    function openHabitModal(habit = null) {
+        if (habit) {
+            habitModalTitle.textContent = 'Edit Habit';
+            habitIdInput.value = habit.id;
+            habitNameInput.value = habit.title;
+        } else {
+            habitModalTitle.textContent = 'Create Habit';
+            habitForm.reset();
+            habitIdInput.value = '';
+        }
+        captureModalBaseline('habit', habit);
+        openDialog('habit-modal');
+        habitNameInput.focus();
+    }
+    
+    function closeHabitModal() {
+        clearModalBaseline('habit');
+        closeDialog('habit-modal');
+        habitForm.reset();
+        habitIdInput.value = '';
+    }
+
+    // Escape closes only the top open modal. This handler runs only
+    // when focus is outside every modal. The per-modal handler stops
+    // propagation after it closes its own layer.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            if (!modal.classList.contains('hidden')) closeModal();
-            if (!placeModal.classList.contains('hidden')) closePlaceModal();
-            if (!collegeModal.classList.contains('hidden')) closeCollegeModal();
-            if (!jobModal.classList.contains('hidden')) closeJobModal();
+            const top = dialogStack[dialogStack.length - 1];
+            if (top) closeDialog(top.id);
         }
     });
 
     btnCreatePlace.addEventListener('click', () => openPlaceModal());
     btnCancelPlaceModal.addEventListener('click', closePlaceModal);
 
-    placeForm.addEventListener('submit', (e) => {
+    placeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const placeData = {
             id: placeIdInput.value || null,
@@ -353,17 +881,15 @@ document.addEventListener('DOMContentLoaded', () => {
             color: placeColorInput.value.trim() || '#a3e635'
         };
         
-        savePlace(placeData);
-        closePlaceModal();
-        refreshUI();
+        if (staleModalBlock('place', placeData.id, getPlaces(), 'place')) return;
+        await runMutation(savePlace(placeData), () => { closePlaceModal(); refreshUI(); });
     });
     
     // --- Maps Callbacks ---
     const handleEditPlace = (place) => openPlaceModal(place);
-    const handleDeletePlace = (placeId) => {
+    const handleDeletePlace = async (placeId) => {
         if (activePlaceId === placeId) activePlaceId = null;
-        deletePlace(placeId);
-        refreshUI();
+        await runMutation(deletePlace(placeId), () => refreshUI());
     };
     const handleClickPlace = (place) => {
         activePlaceId = place.id;
@@ -372,31 +898,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Goal Callbacks ---
     const handleEdit = (goal) => openModal(goal);
-    const handleToggleArchive = (goalId) => {
-        toggleArchive(goalId);
-        refreshUI();
+    const handleToggleArchive = async (goalId) => {
+        await runMutation(toggleArchive(goalId), () => refreshUI());
     };
-    const handleCycleOccurrence = (goalId, dateStr) => {
-        cycleOccurrence(goalId, dateStr);
-        refreshUI();
+    const handleCycleOccurrence = async (goalId, dateStr) => {
+        await runMutation(cycleOccurrence(goalId, dateStr), () => refreshUI());
     };
     
     // --- Job Callbacks ---
     const handleEditJob = (job) => openJobModal(job);
-    const handleDeleteJob = (jobId) => {
-        deleteJob(jobId);
-        refreshUI();
+    const handleDeleteJob = async (jobId) => {
+        await runMutation(deleteJob(jobId), () => refreshUI());
+    };
+
+    // --- Habit Callbacks ---
+    const handleEditHabit = (habit) => openHabitModal(habit);
+    const handleToggleHabitArchive = async (habitId) => {
+        await runMutation(toggleHabitArchive(habitId), () => refreshUI());
+    };
+    const handleToggleHabitCheckin = async (habitId, dateStr) => {
+        await runMutation(toggleHabitCheckin(habitId, dateStr), () => refreshUI());
     };
 
     // --- College Callbacks ---
     const handleEditCollege = (item, type) => openCollegeModal(item, type);
-    const handleDeleteCollege = (type, itemId) => {
-        deleteCollegeItem(type, itemId);
-        refreshUI();
+    const handleDeleteCollege = async (type, itemId) => {
+        await runMutation(deleteCollegeItem(type, itemId), () => refreshUI());
+    };
+
+    // --- Investment Callbacks ---
+    const handleEditInvestment = (investment) => openInvestmentModal(investment);
+    const handleDeleteInvestment = async (investmentId) => {
+        await runMutation(deleteInvestment(investmentId), () => refreshUI());
     };
 
     // --- Rendering Orchestration ---
-    function refreshUI() {
+    async function refreshUI() {
+        renderEpoch++;
+        const currentEpoch = renderEpoch;
+        const activeView = getActiveView();
+        
+        // Fetch Data
+        async function safeFetch(getter, fallback) {
+            try { return (await getter()) || fallback; } catch (e) { return fallback; }
+        }
+        const [allJobsRaw, allHabits, collegeData, newsData] = await Promise.all([
+            safeFetch(getJobs, []),
+            safeFetch(getHabits, []),
+            safeFetch(getCollegeData, { timetable: [], assignments: [], exams: [], fees: [] }),
+            safeFetch(getNewsData, { cache: [], manual: [] })
+        ]);
+        
+        if (renderEpoch !== currentEpoch || getActiveView() !== activeView) return;
+        const allJobs = allJobsRaw || [];
+
         // Countdowns
         renderCountdowns('countdowns-container');
         
@@ -413,9 +968,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Today View Container
         const todayGoalsContainer = document.getElementById('today-goals-container');
-        todayGoalsContainer.innerHTML = '';
+        todayGoalsContainer.replaceChildren();
         if (activeGoals.length === 0) {
-            todayGoalsContainer.innerHTML = '<div class="empty-state">No active goals for today. Enjoy your day!</div>';
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'No active goals for today. Enjoy your day!';
+        todayGoalsContainer.appendChild(emptyDiv);
+    
         } else {
             activeGoals.forEach(g => {
                 todayGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
@@ -424,9 +984,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Goals View - Active Container
         const activeGoalsContainer = document.getElementById('active-goals-container');
-        activeGoalsContainer.innerHTML = '';
+        activeGoalsContainer.replaceChildren();
         if (activeGoals.length === 0) {
-            activeGoalsContainer.innerHTML = '<div class="empty-state">You have no active goals.</div>';
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'You have no active goals.';
+        activeGoalsContainer.appendChild(emptyDiv);
+    
         } else {
             activeGoals.forEach(g => {
                 activeGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
@@ -435,9 +1000,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Goals View - Archived Container
         const archivedGoalsContainer = document.getElementById('archived-goals-container');
-        archivedGoalsContainer.innerHTML = '';
+        archivedGoalsContainer.replaceChildren();
         if (archivedGoals.length === 0) {
-            archivedGoalsContainer.innerHTML = '<div class="empty-state">Archive is empty.</div>';
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'Archive is empty.';
+        archivedGoalsContainer.appendChild(emptyDiv);
+    
         } else {
             archivedGoals.forEach(g => {
                 archivedGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
@@ -446,10 +1016,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Maps View
         const allPlaces = getPlaces();
-        placesList.innerHTML = '';
+        placesList.replaceChildren();
         
+        mapContainer.replaceChildren();
         if (allPlaces.length === 0) {
-            mapContainer.innerHTML = '<div class="empty-state">No places added yet. Add a place to see it on the map.</div>';
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'No places added yet. Add a place to see it on the map.';
+        mapContainer.appendChild(emptyDiv);
+    
         } else {
             const activePlace = allPlaces.find(p => p.id === activePlaceId) || null;
             
@@ -460,36 +1036,105 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const embedUrl = getMapEmbedUrl(allPlaces, activePlace);
             if (embedUrl) {
-                mapContainer.innerHTML = `<iframe src="${embedUrl}" allowfullscreen></iframe>`;
+                
+                const iframe = document.createElement('iframe');
+                iframe.src = embedUrl;
+                iframe.allowFullscreen = true;
+                mapContainer.appendChild(iframe);
+
             }
         }
         
         // Jobs View
-        const allJobs = getJobs() || [];
+        // const allJobs = ...
         const activeStatusFilter = jobStatusFilter.value;
         const activeLocationFilter = jobLocationFilter.value;
         let filteredJobs = allJobs;
-        if (activeStatusFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.status === activeStatusFilter); }
+        if (activeStatusFilter !== 'all') { filteredJobs = filteredJobs.filter(j => activeStatusFilter === 'other' ? isOtherJobStatus(j.status) : j.status === activeStatusFilter); }
         if (activeLocationFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.location === activeLocationFilter); }
         filteredJobs.sort((a, b) => new Date(b.date) - new Date(a.date));
-        jobsContainer.innerHTML = '';
+        jobsContainer.replaceChildren();
         if (filteredJobs.length === 0) {
-            jobsContainer.innerHTML = '<div class="empty-state">No jobs found matching the criteria.</div>';
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'No jobs found matching the criteria.';
+        jobsContainer.appendChild(emptyDiv);
+    
         } else {
             filteredJobs.forEach(job => { jobsContainer.appendChild(createJobCard(job, handleEditJob, handleDeleteJob)); });
         }
+        renderJobsChart('jobs-chart', allJobs, handleChartJobFilter);
+
+        // Investments View
+        const allInvestments = getInvestments() || [];
+        investmentsContainer.replaceChildren();
+        if (allInvestments.length === 0) {
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'No investments added to watchlist yet.';
+        investmentsContainer.appendChild(emptyDiv);
+    
+        } else {
+            allInvestments.forEach(inv => {
+                investmentsContainer.appendChild(createInvestmentCard(inv, handleEditInvestment, handleDeleteInvestment));
+            });
+        }
+        renderInvestmentsChart('investments-chart', allInvestments);
+
+        // Habits View
+        // const allHabits = ...
+        const activeHabits = allHabits.filter(h => h.status !== 'archived');
+        const archivedHabits = allHabits.filter(h => h.status === 'archived');
+        
+        const activeHabitsContainer = document.getElementById('active-habits-container');
+        activeHabitsContainer.replaceChildren();
+        if (activeHabits.length === 0) {
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'No active habits. Create one to get started!';
+        activeHabitsContainer.appendChild(emptyDiv);
+    
+        } else {
+            activeHabits.forEach(h => {
+                activeHabitsContainer.appendChild(createHabitCard(h, handleEditHabit, handleToggleHabitArchive, handleToggleHabitCheckin));
+            });
+        }
+        
+        const archivedHabitsContainer = document.getElementById('archived-habits-container');
+        archivedHabitsContainer.replaceChildren();
+        if (archivedHabits.length === 0) {
+            
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.textContent = 'Archive is empty.';
+        archivedHabitsContainer.appendChild(emptyDiv);
+    
+        } else {
+            archivedHabits.forEach(h => {
+                archivedHabitsContainer.appendChild(createHabitCard(h, handleEditHabit, handleToggleHabitArchive, handleToggleHabitCheckin));
+            });
+        }
 
         // College View
-        const collegeData = getCollegeData();
+
+        renderCollegeChart('college-chart', collegeData);
         ['timetable', 'assignments', 'exams', 'fees'].forEach(type => {
             const container = document.getElementById(`college-${type}-container`);
             if (!container) return;
             
-            container.innerHTML = '';
+            container.replaceChildren();
             const items = collegeData[type] || [];
             
             if (items.length === 0) {
-                container.innerHTML = `<div class="empty-state">No ${type} added yet.</div>`;
+                
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'empty-state';
+                emptyDiv.textContent = `No ${type} added yet.`;
+                container.appendChild(emptyDiv);
+
             } else {
                 // Sort by date mostly
                 items.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -498,8 +1143,270 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         });
+
+        // News View
+        // const newsData = ...
+        const activeNewsCategory = newsCategoryFilter.value;
+        let allNewsItems = [];
+        
+        // Add cache and manual entries
+        allNewsItems.push(...newsData.cache.map(c => ({ ...c, isManual: false })));
+        allNewsItems.push(...newsData.manual.map(m => ({ ...m, isManual: true })));
+        
+        // Filter
+        if (activeNewsCategory !== 'all') {
+            allNewsItems = allNewsItems.filter(item => item.category === activeNewsCategory);
+        }
+        
+        // Sort descending by date
+        allNewsItems.sort((a, b) => new Date(b.published) - new Date(a.published));
+        
+        // Visible load-error state: name the feeds that failed, in text.
+        const erroredSources = (newsData.sources || []).filter(s => s.status === 'error');
+        if (erroredSources.length > 0) {
+            newsStatusBar.textContent = `${erroredSources.length} feed(s) failed to load: ${erroredSources.map(s => s.name).join(', ')}. Cached items, if any, are still shown below. See Manage Sources for details.`;
+        }
+
+        newsContainer.replaceChildren();
+        if (allNewsItems.length === 0) {
+
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        const totalNewsItems = (newsData.cache || []).length + (newsData.manual || []).length;
+        emptyDiv.textContent = totalNewsItems === 0
+            ? 'No news items yet. News is fetched in your browser from the feeds you add — no live news backend is connected yet. Use Manage Sources to add a feed, then Refresh Feeds to load it, or + Add Manual to add an item by hand.'
+            : 'No news found for this category.';
+        newsContainer.appendChild(emptyDiv);
+
+        } else {
+            allNewsItems.forEach(item => {
+                newsContainer.appendChild(createNewsCard(item, item.isManual, async (id) => {
+                    await runMutation(deleteManualEntry(id), () => refreshUI());
+                }));
+            });
+        }
+
+        // --- VISUAL MODULES ---
+        if (activeView === 'view-today') {
+            const progSummaryContainer = document.getElementById('progress-summary-root');
+            if (progSummaryContainer && typeof allHabits !== 'undefined' && typeof allGoals !== 'undefined') {
+                destroyProgressSummary(progSummaryContainer);
+                renderProgressSummary(progSummaryContainer, {
+                    goals: allGoals,
+                    habits: allHabits,
+                    asOf: new Date(),
+                    timeZone: "America/Toronto"
+                });
+                const card = progSummaryContainer.querySelector('.progress-summary-card');
+                if (card) card.classList.add('vu-card');
+                const h3s = progSummaryContainer.querySelectorAll('h3');
+                h3s.forEach(h => h.classList.add('vu-title'));
+            }
+        }
+
+        if (activeView === 'view-college') {
+            const collegeTimelineContainer = document.getElementById('college-deadline-timeline-root');
+            if (collegeTimelineContainer && typeof collegeData !== 'undefined') {
+                destroyDeadlineTimeline(collegeTimelineContainer);
+                const timelineItems = [];
+                ['assignments', 'exams'].forEach(col => {
+                    (collegeData[col] || []).forEach(record => {
+                        timelineItems.push({
+                            due: record.date,
+                            title: record.title,
+                            id: `college:${col}:${record.id}`,
+                            source: col === 'assignments' ? 'assignment' : 'exam'
+                        });
+                    });
+                });
+                renderDeadlineTimeline(collegeTimelineContainer, { items: timelineItems, asOf: new Date(), timeZone: 'America/Toronto' });
+                const tlCard = collegeTimelineContainer.querySelector('.deadline-timeline') || collegeTimelineContainer.querySelector('#deadline-timeline');
+                if (tlCard) {
+                    tlCard.id = 'deadline-timeline';
+                    tlCard.classList.add('vu-card');
+                }
+                const h3s = collegeTimelineContainer.querySelectorAll('h3');
+                h3s.forEach(h => h.classList.add('vu-title'));
+                const headers = collegeTimelineContainer.querySelectorAll('.timeline-header');
+                headers.forEach(h => h.classList.add('vu-text'));
+                const empty = collegeTimelineContainer.querySelectorAll('.timeline-empty');
+                empty.forEach(h => h.classList.add('vu-text'));
+            }
+        }
+
+        if (activeView === 'view-jobs') {
+            const jobsExplorerContainer = document.getElementById('jobs-explorer-root');
+            if (jobsExplorerContainer && typeof allJobs !== 'undefined') {
+                let savedFocus = null;
+                const active = document.activeElement;
+                if (active && jobsExplorerContainer.contains(active)) {
+                    savedFocus = {
+                        identity: active.getAttribute('aria-label') || active.textContent || active.tagName,
+                        value: active.value,
+                        selStart: active.selectionStart,
+                        selEnd: active.selectionEnd
+                    };
+                }
+                destroyChartExplorer(jobsExplorerContainer);
+                renderChartExplorer(jobsExplorerContainer, {
+                    chartId: 'jobs-explorer',
+                    title: 'Jobs Data',
+                    data: allJobs,
+                    columns: ['company', 'role', 'status', 'location', 'date', 'notes']
+                });
+                const container = jobsExplorerContainer.querySelector('.chart-explorer-container');
+                if (container) container.classList.add('vu-card');
+                const title = jobsExplorerContainer.querySelector('h3');
+                if (title) title.classList.add('vu-title');
+                const summary = jobsExplorerContainer.querySelector('.chart-summary');
+                if (summary) summary.classList.add('vu-text');
+                const buttons = jobsExplorerContainer.querySelectorAll('button');
+                buttons.forEach(b => b.classList.add('vu-button'));
+                
+                if (savedFocus) {
+                    let toFocus = Array.from(jobsExplorerContainer.querySelectorAll('input, button')).find(el => {
+                        return el.getAttribute('aria-label') === savedFocus.identity || el.textContent === savedFocus.identity || el.tagName === savedFocus.identity;
+                    });
+                    if (toFocus) {
+                        if (savedFocus.value !== undefined) {
+                            toFocus.value = savedFocus.value;
+                            // Trigger input event to re-apply filter on the new DOM
+                            toFocus.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                        if (savedFocus.selStart !== undefined && savedFocus.selEnd !== undefined) {
+                            try { toFocus.setSelectionRange(savedFocus.selStart, savedFocus.selEnd); } catch(e) {}
+                        }
+                        toFocus.focus();
+                    }
+                }
+            }
+        }
+
+        if (activeView === 'view-investments') {
+            const invExplorerContainer = document.getElementById('investments-explorer-root');
+            if (invExplorerContainer && typeof allInvestments !== 'undefined') {
+                let savedFocus = null;
+                const active = document.activeElement;
+                if (active && invExplorerContainer.contains(active)) {
+                    savedFocus = {
+                        identity: active.getAttribute('aria-label') || active.textContent || active.tagName,
+                        value: active.value,
+                        selStart: active.selectionStart,
+                        selEnd: active.selectionEnd
+                    };
+                }
+                destroyChartExplorer(invExplorerContainer);
+                renderChartExplorer(invExplorerContainer, {
+                    chartId: 'investments-explorer',
+                    title: 'Investments Data',
+                    data: allInvestments,
+                    columns: ['ticker', 'entry', 'current', 'notes']
+                });
+                const container = invExplorerContainer.querySelector('.chart-explorer-container');
+                if (container) container.classList.add('vu-card');
+                const title = invExplorerContainer.querySelector('h3');
+                if (title) title.classList.add('vu-title');
+                const summary = invExplorerContainer.querySelector('.chart-summary');
+                if (summary) summary.classList.add('vu-text');
+                const buttons = invExplorerContainer.querySelectorAll('button');
+                buttons.forEach(b => b.classList.add('vu-button'));
+                
+                if (savedFocus) {
+                    let toFocus = Array.from(invExplorerContainer.querySelectorAll('input, button')).find(el => {
+                        return el.getAttribute('aria-label') === savedFocus.identity || el.textContent === savedFocus.identity || el.tagName === savedFocus.identity;
+                    });
+                    if (toFocus) {
+                        if (savedFocus.value !== undefined) {
+                            toFocus.value = savedFocus.value;
+                            toFocus.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                        if (savedFocus.selStart !== undefined && savedFocus.selEnd !== undefined) {
+                            try { toFocus.setSelectionRange(savedFocus.selStart, savedFocus.selEnd); } catch(e) {}
+                        }
+                        toFocus.focus();
+                    }
+                }
+            }
+        }
     }
+
 
     // Initial render
     refreshUI();
+
+    // Midnight Rollover via Binary Search
+    let midnightTimeout = null;
+    function scheduleMidnightRefresh() {
+        if (midnightTimeout) clearTimeout(midnightTimeout);
+        const now = Date.now();
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Toronto',
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric'
+        });
+        function getDateKey(ts) {
+            const parts = formatter.formatToParts(new Date(ts));
+            const y = parts.find(p => p.type === 'year').value;
+            const m = parts.find(p => p.type === 'month').value;
+            const d = parts.find(p => p.type === 'day').value;
+            return `${y}-${m}-${d}`;
+        }
+        const nowKey = getDateKey(now);
+        let low = now;
+        let high = now + 36 * 60 * 60 * 1000;
+        while (high - low > 1) {
+            const mid = low + Math.floor((high - low) / 2);
+            if (getDateKey(mid) === nowKey) {
+                low = mid;
+            } else {
+                high = mid;
+            }
+        }
+        const boundary = high;
+        const delay = boundary - now + 25;
+        midnightTimeout = setTimeout(() => {
+            refreshUI();
+            scheduleMidnightRefresh();
+        }, delay);
+    }
+    scheduleMidnightRefresh();
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            scheduleMidnightRefresh();
+            refreshUI();
+        }
+    });
+
+
+    window.addEventListener('pagehide', () => {
+        if (midnightTimeout) {
+            clearTimeout(midnightTimeout);
+            midnightTimeout = null;
+        }
+        renderEpoch++;
+        const activeView = getActiveView();
+        if (activeView === 'view-today') {
+            const el = document.getElementById('progress-summary-root');
+            if (el && typeof destroyProgressSummary === 'function') destroyProgressSummary(el);
+        }
+        if (activeView === 'view-college') {
+            const el = document.getElementById('college-deadline-timeline-root');
+            if (el && typeof destroyDeadlineTimeline === 'function') destroyDeadlineTimeline(el);
+        }
+        if (activeView === 'view-jobs') {
+            const el = document.getElementById('jobs-explorer-root');
+            if (el && typeof destroyChartExplorer === 'function') destroyChartExplorer(el);
+        }
+        if (activeView === 'view-investments') {
+            const el = document.getElementById('investments-explorer-root');
+            if (el && typeof destroyChartExplorer === 'function') destroyChartExplorer(el);
+        }
+    });
+
+    window.addEventListener('pageshow', (e) => {
+        scheduleMidnightRefresh();
+        refreshUI();
+    });
 });

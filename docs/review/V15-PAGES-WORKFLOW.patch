@@ -1,0 +1,33 @@
+--- a/.github/workflows/pages.yml
++++ b/.github/workflows/pages.yml
+@@ -1,7 +1,7 @@
+ name: Deploy static content to Pages
++# V15: no push trigger. Deployment runs only by manual dispatch, and
++# only the exact staged asset folder is uploaded — never the repo root.
+ on:
+-  push:
+-    branches: ["main"]
+   workflow_dispatch:
+ permissions:
+   contents: read
+@@ -19,12 +19,18 @@
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v4
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: 24
++      - name: Stage exact asset manifest
++        run: node scripts/package-static-assets.mjs --stage . dist-staged
+       - name: Setup Pages
+         uses: actions/configure-pages@v4
+-      - name: Upload artifact
++      - name: Upload staged artifact
+         uses: actions/upload-pages-artifact@v3
+         with:
+-          path: '.'
++          path: 'dist-staged'
+       - name: Deploy to GitHub Pages
+         id: deployment
+         uses: actions/deploy-pages@v4

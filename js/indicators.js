@@ -74,19 +74,19 @@ function createIndicatorTile(indicator, data, isStale) {
     card.style.position = 'relative'; // for absolute positioning of stale badge if needed
     
     let changeSymbol = '';
-    let changeColor = 'var(--text-secondary)';
-    
+    let changeClass = '';
+
     if (data.change !== 'N/A') {
         const changeNum = parseFloat(data.change);
         if (changeNum > 0) {
             changeSymbol = '+';
-            changeColor = 'var(--accent-color)'; // Lime
+            changeClass = ' is-positive'; // Lime
         } else if (changeNum < 0) {
-            changeColor = 'var(--danger-color)'; // Red
+            changeClass = ' is-negative'; // Red
         }
     }
-    
-    const staleBadgeHtml = isStale ? `<span class="badge amber" style="margin-left: 0.5rem;">Stale</span>` : '';
+
+    const staleBadgeHtml = isStale ? `<span class="badge amber badge-spaced">Stale</span>` : '';
     
     card.innerHTML = `
         <div class="card-header">
@@ -94,18 +94,18 @@ function createIndicatorTile(indicator, data, isStale) {
             ${staleBadgeHtml}
         </div>
         <div class="card-body">
-            <div style="font-size: 2rem; font-weight: 600; line-height: 1.2;">
+            <div class="indicator-value">
                 ${data.value}
             </div>
-            <div style="font-size: 0.875rem; color: ${changeColor};">
+            <div class="indicator-change${changeClass}">
                 ${changeSymbol}${data.change} DoD
             </div>
-            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 1rem;">
+            <div class="indicator-asof">
                 As of: ${data.asOfDate}
             </div>
         </div>
-        <div class="card-footer" style="margin-top: 0;">
-            <a href="https://www.bankofcanada.ca/" target="_blank" rel="noopener noreferrer" style="color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; border-bottom: 1px dotted var(--text-secondary);">Source: bankofcanada.ca</a>
+        <div class="card-footer card-footer-flush">
+            <a class="source-link" href="https://www.bankofcanada.ca/" target="_blank" rel="noopener noreferrer">Source: bankofcanada.ca</a>
         </div>
     `;
     
@@ -119,13 +119,13 @@ function createErrorTile(indicator) {
     card.innerHTML = `
         <div class="card-header">
             <div class="card-title">${indicator.label}</div>
-            <span class="badge danger" style="margin-left: 0.5rem;">Error</span>
+            <span class="badge danger badge-spaced">Error</span>
         </div>
-        <div class="card-body" style="display: flex; align-items: center; justify-content: center;">
-            <p style="color: var(--text-secondary); font-style: italic; margin: 0;">Unavailable</p>
+        <div class="card-body card-body-center">
+            <p class="unavailable-text">Unavailable</p>
         </div>
-        <div class="card-footer" style="margin-top: 0;">
-            <a href="https://www.bankofcanada.ca/" target="_blank" rel="noopener noreferrer" style="color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; border-bottom: 1px dotted var(--text-secondary);">Source: bankofcanada.ca</a>
+        <div class="card-footer card-footer-flush">
+            <a class="source-link" href="https://www.bankofcanada.ca/" target="_blank" rel="noopener noreferrer">Source: bankofcanada.ca</a>
         </div>
     `;
     

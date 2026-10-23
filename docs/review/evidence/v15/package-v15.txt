@@ -1,0 +1,27 @@
+Asset manifest check
+  source: /home/hatch/workspace/goals/personal-life-dashboard/hidden_files/codex-v15-20261022/gate
+  staged: /tmp/v15-staged (staged by this run)
+  expected ship set: 21 files
+    LICENSE (1079 B)
+    THIRD-PARTY-NOTICES.txt (2735 B)
+    css/app.css (10146 B)
+    css/visual-upgrade.css (1934 B)
+    index.html (24388 B)
+    js/chart.umd.js (208518 B)
+    js/college.js (4480 B)
+    js/countdowns.js (5926 B)
+    js/feeds.js (17138 B)
+    js/goals.js (11495 B)
+    js/habits.js (14275 B)
+    js/indicators.js (7263 B)
+    js/investments.js (5053 B)
+    js/jobs.js (5436 B)
+    js/main.js (60178 B)
+    js/maps.js (6571 B)
+    js/store.js (42319 B)
+    js/visuals/chart-explorer.js (7681 B)
+    js/visuals/charts.js (14812 B)
+    js/visuals/deadline-timeline.js (9125 B)
+    js/visuals/progress-summary.js (6212 B)
+
+Result: PASS — staged folder matches the exact manifest and every local reference resolves.

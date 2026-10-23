@@ -9,6 +9,10 @@ export function getPlaces() {
 }
 
 export function savePlace(placeData) {
+    if (!isValidCoordinate(placeData.lat, placeData.lng)) {
+        return Promise.reject(new Error('Invalid coordinates: latitude must be a finite number from -90 to 90 and longitude from -180 to 180'));
+    }
+
     const data = getData();
     if (!data.places) {
         data.places = [];
@@ -21,22 +25,43 @@ export function savePlace(placeData) {
         }
     } else {
         const newPlace = {
-            id: 'place_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
             ...placeData,
+            id: 'place_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
             createdAt: new Date().toISOString()
         };
         data.places.push(newPlace);
     }
     
-    saveData(data);
+    return saveData(data);
 }
 
 export function deletePlace(placeId) {
     const data = getData();
     if (data.places) {
         data.places = data.places.filter(p => p.id !== placeId);
-        saveData(data);
+        return saveData(data);
     }
+}
+
+function parseCoordinate(value) {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        // Decimal notation only: Number() alone would also accept 0x/0b/0o
+        // prefixed strings, which are not coordinates.
+        if (!/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(trimmed)) return NaN;
+        return Number(trimmed);
+    }
+    return NaN;
+}
+
+export function isValidCoordinate(lat, lng) {
+    const latFloat = parseCoordinate(lat);
+    const lngFloat = parseCoordinate(lng);
+    if (!Number.isFinite(latFloat) || !Number.isFinite(lngFloat)) return false;
+    if (latFloat < -90 || latFloat > 90) return false;
+    if (lngFloat < -180 || lngFloat > 180) return false;
+    return true;
 }
 
 /**
@@ -45,40 +70,58 @@ export function deletePlace(placeId) {
  * Adds a marker if an active place is provided.
  */
 export function getMapEmbedUrl(places, activePlace = null) {
+    const effectiveActivePlace = (activePlace && isValidCoordinate(activePlace.lat, activePlace.lng)) ? activePlace : null;
+
     if (!places || places.length === 0) return null;
+
+    const validPlaces = places.filter(p => isValidCoordinate(p.lat, p.lng));
+    if (validPlaces.length === 0) return null;
 
     let baseUrl = 'https://www.openstreetmap.org/export/embed.html';
     let params = new URLSearchParams();
 
-    if (places.length > 0) {
-        // Calculate bounding box
-        let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-        places.forEach(p => {
-            const lat = parseFloat(p.lat);
-            const lng = parseFloat(p.lng);
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-        });
+    // Calculate bounding box
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    validPlaces.forEach(p => {
+        const lat = parseFloat(p.lat);
+        const lng = parseFloat(p.lng);
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+    });
 
-        // Add some padding to the bounding box
-        const latPadding = Math.max(0.01, (maxLat - minLat) * 0.1);
-        const lngPadding = Math.max(0.01, (maxLng - minLng) * 0.1);
-        
-        const bbox = [
-            minLng - lngPadding,
-            minLat - latPadding,
-            maxLng + lngPadding,
-            maxLat + latPadding
-        ].join(',');
-        
-        params.append('bbox', bbox);
-        params.append('layer', 'mapnik');
-    }
+    // Add some padding to the bounding box
+    const latPadding = Math.max(0.01, (maxLat - minLat) * 0.1);
+    const lngPadding = Math.max(0.01, (maxLng - minLng) * 0.1);
+    
+    let finalMinLat = minLat - latPadding;
+    let finalMaxLat = maxLat + latPadding;
+    let finalMinLng = minLng - lngPadding;
+    let finalMaxLng = maxLng + lngPadding;
+    
+    // Clamp to valid ranges
+    finalMinLat = Math.max(-90, Math.min(90, finalMinLat));
+    finalMaxLat = Math.max(-90, Math.min(90, finalMaxLat));
+    finalMinLng = Math.max(-180, Math.min(180, finalMinLng));
+    finalMaxLng = Math.max(-180, Math.min(180, finalMaxLng));
+    
+    // Assert min <= max to avoid inverted bbox
+    if (finalMinLat > finalMaxLat) finalMinLat = finalMaxLat;
+    if (finalMinLng > finalMaxLng) finalMinLng = finalMaxLng;
+    
+    const bbox = [
+        finalMinLng,
+        finalMinLat,
+        finalMaxLng,
+        finalMaxLat
+    ].join(',');
+    
+    params.append('bbox', bbox);
+    params.append('layer', 'mapnik');
 
-    if (activePlace) {
-        params.append('marker', `${activePlace.lat},${activePlace.lng}`);
+    if (effectiveActivePlace) {
+        params.append('marker', `${parseFloat(effectiveActivePlace.lat)},${parseFloat(effectiveActivePlace.lng)}`);
     }
 
     return `${baseUrl}?${params.toString()}`;
@@ -113,7 +156,9 @@ export function createPlaceElement(place, onEdit, onDelete, onClick, isActive) {
     
     const coords = document.createElement('div');
     coords.className = 'place-coords';
-    coords.textContent = `${parseFloat(place.lat).toFixed(4)}, ${parseFloat(place.lng).toFixed(4)}`;
+    coords.textContent = isValidCoordinate(place.lat, place.lng)
+        ? `${parseFloat(place.lat).toFixed(4)}, ${parseFloat(place.lng).toFixed(4)}`
+        : `${place.lat}, ${place.lng}`;
     
     textContainer.appendChild(name);
     textContainer.appendChild(coords);

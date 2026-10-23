@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 2,
+  "testedCommit": "5c9fba30ddab57667bc652ea8532d64bba197614",
+  "storeSha256": "aa505bf99d91a8ce6e86e37d0618bf58f8d82bdfe7f7dc49f44a466651bec719",
+  "feedsSha256": "b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88",
+  "runtime": "node v24.20.0",
+  "runId": "e07d7c3e-a001-4a2d-8f97-c9fcc6138d7e",
+  "generatedAt": "2026-10-22T09:28:32.142Z",
+  "cases": [
+    {
+      "id": "TEST-FEEDS-001",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "cache persisted in IndexedDB; generation 9314be7c stable across reload; valid refresh preserved item 1 and added item 2"
+    },
+    {
+      "id": "TEST-FEEDS-002",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "paused refresh committed after tab B edit; refreshed item and tab B manual entry both present"
+    },
+    {
+      "id": "TEST-FEEDS-003",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "reversed order: newer items kept, older response blocked by token; deleted source: late response committed nothing; oversize, malformed and HTTP 500 each preserved the last valid cache"
+    },
+    {
+      "id": "V5-FEEDS-01",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "stalled body settled at 15867ms with timeout error; last valid cache preserved"
+    },
+    {
+      "id": "V5-FEEDS-02",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "category edit during fetch blocked the stale commit; no items committed"
+    },
+    {
+      "id": "V5-FEEDS-03",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "save path rejected or dropped the javascript: URL (save resolved); blank and https records preserved; legacy link rendered inert (anchor hrefs: [])"
+    },
+    {
+      "id": "V8-JOBS-OTHER",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "clicked the real chart Other bar at canvas fraction 0.5,0.86; filter value 'other' with label 'Other'; list showed ExplicitOtherCo + PendingCo + BlankCo (3); Other+Toronto narrowed to 2; All reset restored 4; zero page errors"
+    },
+    {
+      "id": "TEST-STORE-001",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "poisoned higher-version DB forces degraded init; failed re-init stays degraded; saves reject with the degraded error; getData reads and exportData downloads"
+    },
+    {
+      "id": "TEST-STORE-002",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "after fault removal an explicit initStore restores ready; one save commits (revision 1 -> 2); a real reload preserves the record"
+    },
+    {
+      "id": "TEST-STORE-003",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "three initStore calls construct 3 channels, close 2, leave 1 active; a save in tab A becomes visible in tab B through the native BroadcastChannel sync"
+    },
+    {
+      "id": "TEST-STORE-004",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "saveData resolves { committed: true, conflict: false } while postMessage throws; the durable record advances exactly one revision and survives reload"
+    },
+    {
+      "id": "V5-STORE-01",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "legacy null/missing place IDs are repaired by the migrator before the first durable put; the one valid ID and all records survive; malformed legacy input yields explicit recovery"
+    },
+    {
+      "id": "TEST-STORE-005",
+      "boundary": "REAL-BROWSER",
+      "status": "PASS",
+      "detail": "save over a natively deleted record rejects with Save failed, explicit re-init recovers and the next save is durable across reload; untracked input rejects; two in-flight saves settle as exactly one commit and one Conflict rejection with one durable winner"
+    },
+    {
+      "id": "TEST-UI-001",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "app booted on the local origin; all 9 nav views rendered; zero uncaught page errors; zero failed module requests"
+    },
+    {
+      "id": "TEST-UI-002f",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "export downloaded and parsed; exportedAt 2026-10-22T09:28:08.184Z; goals in file: QA Goal One 280370"
+    },
+    {
+      "id": "V5-STORE-02",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "conflict produced exactly one confirm, one blocked alert, and one draft download; the UI refreshed to the adopted data without a reload; stored data kept all goals"
+    },
+    {
+      "id": "TEST-UI-002e",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "the same export file imported twice; each import settled with one success alert and identical resulting data"
+    },
+    {
+      "id": "TEST-UI-002d",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "malformed JSON and wrong-app files each produced exactly one import-failed alert; current data unchanged; zero uncaught errors"
+    },
+    {
+      "id": "TEST-UI-002c",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "dismissing the import confirm cancelled cleanly: no alert, no download, no data change, file input reset for the next selection"
+    },
+    {
+      "id": "TEST-UI-002a",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "degraded save rejected with alert \"Save rejected: Storage is in a degraded state.\"; modal stayed open; input retained verbatim; nothing was written"
+    },
+    {
+      "id": "TEST-UI-002b",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "after a clean reload the same title saved successfully; modal closed; goal rendered; no alert on retry"
+    },
+    {
+      "id": "TEST-UI-002g",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "keyboard opened the modal; focus started on goal-title; Tab order goal-title -> goal-notes -> goal-target -> goal-show-notes -> btn-cancel-modal -> Save; cancel returned focus to btn-create-goal"
+    },
+    {
+      "id": "TEST-UI-002h",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "no horizontal overflow at 320x568; scrollWidths today 320, goals 320, settings 320"
+    },
+    {
+      "id": "TEST-UI-002i",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "no horizontal overflow at 375px width; scrollWidths today 375, goals 375, settings 375"
+    },
+    {
+      "id": "TEST-UI-002j",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "reduced-motion media matches; 2 stylesheet media rule(s); computed durations transition 0.00001s, animation 0.00001s"
+    },
+    {
+      "id": "TEST-HABITS-001",
+      "status": "PASS",
+      "boundary": "REAL-BROWSER",
+      "detail": "completedAt occurrence created for local day 2026-10-22, preserved across reload with the same timestamp, removed by second toggle"
+    }
+  ]
+}

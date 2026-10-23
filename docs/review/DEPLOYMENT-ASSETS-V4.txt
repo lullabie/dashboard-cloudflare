@@ -1,0 +1,28 @@
+DEPLOYMENT ASSETS — v4 allowlist (preparation only; deploys nothing)
+Bundle: CODEX-DASHBOARD-PHASES-V4-20261021
+Check: node scripts/package-static-assets.mjs <assembled-tree-path>
+
+SHIP (allowlist)
+  index.html
+  css/*.css                 (app.css, visual-upgrade.css)
+  js/*.js                   (production modules only, no test files)
+  js/visuals/*.js           (production modules only, no test files)
+  LICENSE                   (byte-identical to base; never edited)
+
+NEVER SHIP (excluded; the packaging check fails if one would ship)
+  docs/**                   (includes docs/review/ ledgers and this file)
+  qa/**                     (Track D harness, fixtures, evidence)
+  **/__tests__/**           (lane test files)
+  **/*test*.js, **/*test*.mjs outside the app entry points
+  scripts/**                (review tooling)
+  .github/**                (workflows)
+  *.md, *.patch, *.txt      (documents, helper patches, result files)
+  MANIFEST*, result*, patch_manifest*, summary*, ledger files
+  Any credential, secret, token or .env file, under any name
+
+GATES
+  - The old GitHub Pages workflow (.github/workflows/pages.yml) is
+    unchanged by this bundle and remains a named packaging gate until
+    reviewed. This allowlist does not authorize running or replacing it.
+  - Backend assets (Workers, D1) do not exist; the backend is
+    UNACCEPTED. Nothing in this list is hosted acceptance evidence.

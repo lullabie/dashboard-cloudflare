@@ -1,0 +1,664 @@
+{
+ "base": "2eaa5268afc91d13df872bb709dec8179e9f2f94",
+ "gaps": {
+  "AG-1": {
+   "variants": [
+    {
+     "variant": "history-string",
+     "inputData": {
+      "goals": [
+       {
+        "title": "Goal H",
+        "history": "bad-history"
+       }
+      ],
+      "places": [],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": {},
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [],
+      "diskQuarantine": null,
+      "memoryField": []
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": "bad-history",
+      "diskFieldAfterInit": "bad-history",
+      "diskQuarantineAfterInit": null,
+      "exportedField": "bad-history",
+      "exportedQuarantine": null,
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": [],
+      "diskQuarantine": null,
+      "memoryField": [],
+      "rawValueInPostRoundtripDiskRecord": false,
+      "rawValueInSourceExportFile": true
+     }
+    },
+    {
+     "variant": "history-number",
+     "inputData": {
+      "goals": [
+       {
+        "title": "Goal H",
+        "history": 42
+       }
+      ],
+      "places": [],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": {},
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [],
+      "diskQuarantine": null,
+      "memoryField": []
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": 42,
+      "diskFieldAfterInit": 42,
+      "diskQuarantineAfterInit": null,
+      "exportedField": 42,
+      "exportedQuarantine": null,
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": [],
+      "diskQuarantine": null,
+      "memoryField": [],
+      "rawValueInPostRoundtripDiskRecord": false,
+      "rawValueInSourceExportFile": true
+     }
+    },
+    {
+     "variant": "history-missing",
+     "inputData": {
+      "goals": [
+       {
+        "title": "Goal H"
+       }
+      ],
+      "places": [],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": {},
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [],
+      "diskQuarantine": null,
+      "memoryField": []
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": "__MISSING__",
+      "diskFieldAfterInit": "__MISSING__",
+      "diskQuarantineAfterInit": null,
+      "exportedField": "__MISSING__",
+      "exportedQuarantine": null,
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": [],
+      "diskQuarantine": null,
+      "memoryField": [],
+      "rawValueInPostRoundtripDiskRecord": null,
+      "rawValueInSourceExportFile": null
+     }
+    }
+   ]
+  },
+  "AG-2": {
+   "variants": [
+    {
+     "variant": "id-missing",
+     "inputData": {
+      "goals": [],
+      "places": [
+       {
+        "title": "No id place"
+       }
+      ],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": {},
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1792675343637_hrfslx09o"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1792675343637_hrfslx09o"
+      ]
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": [
+       "__MISSING__"
+      ],
+      "diskFieldAfterInit": [
+       "__MISSING__"
+      ],
+      "diskQuarantineAfterInit": null,
+      "exportedField": [
+       "__MISSING__"
+      ],
+      "exportedQuarantine": null,
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1792675343718_fxdd7cf64"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1792675343718_fxdd7cf64"
+      ],
+      "rawValueInPostRoundtripDiskRecord": null,
+      "rawValueInSourceExportFile": null
+     }
+    },
+    {
+     "variant": "id-short",
+     "inputData": {
+      "goals": [],
+      "places": [
+       {
+        "id": "short",
+        "title": "Short id place"
+       }
+      ],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": {},
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1792675343762_ka48ckhiy"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1792675343762_ka48ckhiy"
+      ]
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": [
+       "short"
+      ],
+      "diskFieldAfterInit": [
+       "short"
+      ],
+      "diskQuarantineAfterInit": null,
+      "exportedField": [
+       "short"
+      ],
+      "exportedQuarantine": null,
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1792675343845_dzg25hjyr"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1792675343845_dzg25hjyr"
+      ],
+      "rawValueInPostRoundtripDiskRecord": false,
+      "rawValueInSourceExportFile": true
+     }
+    },
+    {
+     "variant": "id-numeric",
+     "inputData": {
+      "goals": [],
+      "places": [
+       {
+        "id": 12345,
+        "title": "Numeric id place"
+       }
+      ],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": {},
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1792675343888_f5p0395ip"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1792675343888_f5p0395ip"
+      ]
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": [
+       12345
+      ],
+      "diskFieldAfterInit": [
+       12345
+      ],
+      "diskQuarantineAfterInit": null,
+      "exportedField": [
+       12345
+      ],
+      "exportedQuarantine": null,
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1792675343966_4hj2l4zal"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1792675343966_4hj2l4zal"
+      ],
+      "rawValueInPostRoundtripDiskRecord": false,
+      "rawValueInSourceExportFile": true
+     }
+    },
+    {
+     "variant": "id-duplicate",
+     "inputData": {
+      "goals": [],
+      "places": [
+       {
+        "id": "place_1234567890",
+        "title": "First"
+       },
+       {
+        "id": "place_1234567890",
+        "title": "Second"
+       }
+      ],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": {},
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1234567890",
+       "place_1792675344009_f7nilo3lm"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1234567890",
+       "place_1792675344009_f7nilo3lm"
+      ]
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": [
+       "place_1234567890",
+       "place_1234567890"
+      ],
+      "diskFieldAfterInit": [
+       "place_1234567890",
+       "place_1234567890"
+      ],
+      "diskQuarantineAfterInit": null,
+      "exportedField": [
+       "place_1234567890",
+       "place_1234567890"
+      ],
+      "exportedQuarantine": null,
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": [
+       "place_1234567890",
+       "place_1792675344091_4hsvfe4tm"
+      ],
+      "diskQuarantine": null,
+      "memoryField": [
+       "place_1234567890",
+       "place_1792675344091_4hsvfe4tm"
+      ],
+      "rawValueInPostRoundtripDiskRecord": null,
+      "rawValueInSourceExportFile": null
+     }
+    }
+   ]
+  },
+  "AG-3": {
+   "variants": [
+    {
+     "variant": "metadata-string",
+     "inputData": {
+      "goals": [],
+      "places": [],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": "meta-string",
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": "meta-string",
+      "diskQuarantine": null,
+      "memoryField": {}
+     },
+     "legA_exportThenReload": {
+      "exportedField": {},
+      "exportedQuarantine": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": "meta-string"
+       }
+      ],
+      "diskFieldBeforeReload": "meta-string",
+      "reloadStatus": "ready",
+      "diskFieldAfterReload": {},
+      "diskQuarantineAfterReload": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": "meta-string"
+       }
+      ],
+      "memoryFieldAfterReload": {},
+      "rawValueInDiskRecordAfterReload": true,
+      "rawValueInQuarantineAfterReload": true
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": {},
+      "diskFieldAfterInit": {},
+      "diskQuarantineAfterInit": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": "meta-string"
+       }
+      ],
+      "exportedField": {},
+      "exportedQuarantine": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": "meta-string"
+       }
+      ],
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": {},
+      "diskQuarantine": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": "meta-string"
+       }
+      ],
+      "memoryField": {},
+      "rawValueInPostRoundtripDiskRecord": true,
+      "rawValueInSourceExportFile": true
+     }
+    },
+    {
+     "variant": "metadata-array",
+     "inputData": {
+      "goals": [],
+      "places": [],
+      "jobs": [],
+      "investments": [],
+      "habits": [],
+      "indicators": [],
+      "metadata": [
+       1,
+       2
+      ],
+      "college": {
+       "timetable": [],
+       "assignments": [],
+       "exams": [],
+       "fees": []
+      },
+      "news": {
+       "sources": [],
+       "cache": [],
+       "manual": []
+      }
+     },
+     "legA_import": {
+      "initStatus": "ready",
+      "committed": true,
+      "error": null,
+      "diskField": [
+       1,
+       2
+      ],
+      "diskQuarantine": null,
+      "memoryField": {}
+     },
+     "legA_exportThenReload": {
+      "exportedField": {},
+      "exportedQuarantine": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": [
+         1,
+         2
+        ]
+       }
+      ],
+      "diskFieldBeforeReload": [
+       1,
+       2
+      ],
+      "reloadStatus": "ready",
+      "diskFieldAfterReload": {},
+      "diskQuarantineAfterReload": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": [
+         1,
+         2
+        ]
+       }
+      ],
+      "memoryFieldAfterReload": {},
+      "rawValueInDiskRecordAfterReload": true,
+      "rawValueInQuarantineAfterReload": true
+     },
+     "legB_adoption": {
+      "initStatus": "ready",
+      "memoryField": {},
+      "diskFieldAfterInit": {},
+      "diskQuarantineAfterInit": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": [
+         1,
+         2
+        ]
+       }
+      ],
+      "exportedField": {},
+      "exportedQuarantine": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": [
+         1,
+         2
+        ]
+       }
+      ],
+      "exportWroteToDisk": false
+     },
+     "legC_roundtrip": {
+      "committed": true,
+      "error": null,
+      "diskField": {},
+      "diskQuarantine": [
+       {
+        "path": "metadata",
+        "index": -1,
+        "value": [
+         1,
+         2
+        ]
+       }
+      ],
+      "memoryField": {},
+      "rawValueInPostRoundtripDiskRecord": true,
+      "rawValueInSourceExportFile": false
+     }
+    }
+   ]
+  }
+ }
+}

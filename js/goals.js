@@ -16,6 +16,7 @@ export function saveGoal(goalData) {
         const index = data.goals.findIndex(g => g.id === goalData.id);
         if (index !== -1) {
             const existing = data.goals[index];
+            if (!Array.isArray(existing.history)) existing.history = [];
             // Immutable history: append edit event
             existing.history.push({
                 type: 'EDIT',
@@ -53,13 +54,14 @@ export function saveGoal(goalData) {
         data.goals.push(newGoal);
     }
     
-    saveData(data);
+    return saveData(data);
 }
 
 export function toggleArchive(goalId) {
     const data = getData();
     const goal = data.goals.find(g => g.id === goalId);
     if (goal) {
+        if (!Array.isArray(goal.history)) goal.history = [];
         const newStatus = goal.status === 'active' ? 'archived' : 'active';
         goal.history.push({
             type: 'STATUS_CHANGE',
@@ -69,7 +71,7 @@ export function toggleArchive(goalId) {
         });
         goal.status = newStatus;
         goal.updatedAt = new Date().toISOString();
-        saveData(data);
+        return saveData(data);
     }
 }
 
@@ -107,6 +109,7 @@ export function cycleOccurrence(goalId, dateStr) {
         goal.occurrences[dateStr] = nextStatus;
     }
 
+    if (!Array.isArray(goal.history)) goal.history = [];
     goal.history.push({
         type: 'OCCURRENCE_CHANGE',
         timestamp: new Date().toISOString(),
@@ -115,19 +118,19 @@ export function cycleOccurrence(goalId, dateStr) {
     });
     
     goal.updatedAt = new Date().toISOString();
-    saveData(data);
+    return saveData(data);
 }
 
 export function calculateStreak(occurrences, todayStr) {
     if (!occurrences) return 0;
     
     let streak = 0;
-    // We append noon so that it doesn't shift days due to minor timezone offsets 
-    // when using Date object arithmetic. 'America/Toronto' is used for string generation.
-    const today = new Date(todayStr + 'T12:00:00'); 
+    // Use UTC noon to safely add/subtract days without timezone drift
+    const today = new Date(todayStr + 'T12:00:00Z'); 
     
     let currentDate = new Date(today);
-    const todayStatus = occurrences[getLocalDateString(currentDate)];
+    const getCalendarDate = (d) => d.toISOString().split('T')[0];
+    const todayStatus = occurrences[getCalendarDate(currentDate)];
     
     // If today was explicitly missed or late, the streak is dead.
     if (todayStatus === 'missed' || todayStatus === 'late') {
@@ -140,13 +143,13 @@ export function calculateStreak(occurrences, todayStr) {
     }
     
     // Move to yesterday and go backwards
-    currentDate.setDate(currentDate.getDate() - 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() - 1);
 
     while (true) {
-        const dateStr = getLocalDateString(currentDate);
+        const dateStr = currentDate.toISOString().split('T')[0];
         if (occurrences[dateStr] === 'done') {
             streak++;
-            currentDate.setDate(currentDate.getDate() - 1);
+            currentDate.setUTCDate(currentDate.getUTCDate() - 1);
         } else {
             break;
         }
@@ -164,9 +167,14 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     card.dataset.id = goal.id;
     
     const occurrences = goal.occurrences || {};
-    const doneDays = Object.values(occurrences).filter(status => status === 'done').length;
+    const manualCheckIns = Array.isArray(goal.checkIns) ? goal.checkIns.length : (typeof goal.checkIns === 'number' ? goal.checkIns : 0);
+    const doneDays = Object.values(occurrences).filter(status => status === 'done').length + manualCheckIns;
 
-    const target = goal.target || 1;
+    // V15 contract: target is untrusted (an import can carry any
+    // value, including a markup string). Coerce to a finite positive
+    // number before display or arithmetic; never render the raw value.
+    const targetNum = Number(goal.target);
+    const target = Number.isFinite(targetNum) && targetNum > 0 ? targetNum : 1;
     const progress = Math.min(100, Math.round((doneDays / target) * 100));
     
     const todayStr = getLocalDateString(new Date());
@@ -178,35 +186,35 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     const strokeDashoffset = circumference - (progress / 100) * circumference;
     
     const ringHtml = `
-        <div style="position: relative; width: 40px; height: 40px; flex-shrink: 0;">
-            <svg width="40" height="40" viewBox="0 0 40 40" style="transform: rotate(-90deg);">
+        <div class="goal-ring">
+            <svg class="goal-ring-svg" width="40" height="40" viewBox="0 0 40 40">
                 <circle cx="20" cy="20" r="16" fill="none" stroke="var(--border-color)" stroke-width="4"></circle>
-                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--accent-color)" stroke-width="4" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" style="transition: stroke-dashoffset 0.5s ease;"></circle>
+                <circle class="goal-ring-progress" cx="20" cy="20" r="16" fill="none" stroke="var(--accent-color)" stroke-width="4" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}"></circle>
             </svg>
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold;">
+            <div class="goal-ring-label">
                 ${progress}%
             </div>
         </div>
     `;
 
     // History Timeline (last 7 days)
-    let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
+    let timelineHtml = '<div class="timeline">';
     for (let i = 6; i >= 0; i--) {
-        const d = new Date(todayStr + 'T12:00:00');
-        d.setDate(d.getDate() - i);
-        const dateStr = getLocalDateString(d);
-        const status = occurrences[dateStr] || 'none';
+        const d = new Date(todayStr + 'T12:00:00Z');
+        d.setUTCDate(d.getUTCDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        // Closed enum: an imported occurrence value is untrusted and
+        // lands in a title attribute below; only known states pass.
+        const rawStatus = occurrences[dateStr];
+        const status = (rawStatus === 'done' || rawStatus === 'missed' || rawStatus === 'late') ? rawStatus : 'none';
         
-        let bgColor = 'var(--surface-hover)'; // default 'none'
-        if (status === 'done') bgColor = 'var(--accent-color)';
-        else if (status === 'missed') bgColor = 'var(--danger-color)';
-        else if (status === 'late') bgColor = '#f59e0b'; // amber
-        
+        // Status color is a class toggle (CSP: no inline style strings).
+        const statusClass = status === 'none' ? '' : ` is-${status}`;
+
         // Tooltip using title attribute for now
         const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
         timelineHtml += `
-            <div class="timeline-day" data-date="${dateStr}" title="${dayLabel}: ${status}" 
-                 style="flex: 1; height: 24px; border-radius: var(--radius-sm); background-color: ${bgColor}; cursor: pointer; border: 1px solid var(--border-color);">
+            <div class="timeline-day${statusClass}" data-date="${dateStr}" title="${dayLabel}: ${status}">
             </div>
         `;
     }
@@ -214,24 +222,24 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
 
     // HTML Construction
     card.innerHTML = `
-        <div class="card-header" style="align-items: center;">
-            <div style="display: flex; gap: 1rem; align-items: center; width: 100%;">
+        <div class="card-header card-header-center">
+            <div class="header-main">
                 ${ringHtml}
-                <div style="flex-grow: 1;">
+                <div class="header-grow">
                     <div class="card-title">${escapeHtml(goal.title)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${doneDays} / ${target} done</div>
+                    <div class="meta-text">${doneDays} / ${target} done</div>
                 </div>
             </div>
-            ${goal.status === 'archived' ? '<span class="badge" style="margin-left: auto;">Archived</span>' : ''}
+            ${goal.status === 'archived' ? '<span class="badge badge-push">Archived</span>' : ''}
         </div>
         <div class="card-body">
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
-                <span style="font-weight: bold; color: var(--text-primary);">${streak > 0 ? streak + ' 🔥' : ''}</span>
+            <div class="streak-row">
+                <span class="streak-value">${streak > 0 ? streak + ' 🔥' : ''}</span>
             </div>
             ${timelineHtml}
             ${goal.showNotes && goal.notes ? `<div class="card-notes">${escapeHtml(goal.notes)}</div>` : ''}
         </div>
-        <div class="card-footer" style="justify-content: flex-end;">
+        <div class="card-footer card-footer-end">
             <div class="card-actions">
                 <button class="icon-btn edit-btn">Edit</button>
                 <button class="icon-btn archive-btn">${goal.status === 'active' ? 'Archive' : 'Restore'}</button>
@@ -269,8 +277,8 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
 
 // Utility to prevent XSS in our plain vanilla JS app
 function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
          .replace(/>/g, "&gt;")

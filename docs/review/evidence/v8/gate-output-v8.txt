@@ -1,0 +1,159 @@
+Tree: <tree>
+Run: e07d7c3e-a001-4a2d-8f97-c9fcc6138d7e
+Tested commit: 5c9fba30ddab57667bc652ea8532d64bba197614
+js/store.js sha256: aa505bf99d91a8ce6e86e37d0618bf58f8d82bdfe7f7dc49f44a466651bec719
+js/feeds.js sha256: b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88
+
+Review tests: 11 file(s) under <tree>
+
+[TEST] __tests__/charts.test.mjs
+[RESULT] __tests__/charts.test.mjs: PASS
+
+[TEST] __tests__/feeds-v4-contract.test.mjs
+[RESULT] __tests__/feeds-v4-contract.test.mjs: PASS
+
+[TEST] __tests__/feeds-v4-ordering.test.mjs
+[RESULT] __tests__/feeds-v4-ordering.test.mjs: PASS
+
+[TEST] __tests__/jobs-filter.test.mjs
+[RESULT] __tests__/jobs-filter.test.mjs: PASS
+
+[TEST] __tests__/store-v3-bc-validation.test.js
+  PASS [MOCK]: initStore sets up exactly one BroadcastChannel when resolving ready
+  PASS [MOCK]: Repeated initStore binds exactly one fresh channel
+  PASS [MOCK]: Failed listener setup degrades initialization securely
+[RESULT] __tests__/store-v3-bc-validation.test.js: PASS
+
+[TEST] __tests__/store-v3-degraded-save.test.js
+  PASS [MOCK]: Initial BroadcastChannel failure returns degraded status
+  PASS [MOCK]: saveData rejected due to degraded mode explicitly
+  PASS [MOCK]: Zero writes performed while degraded
+  PASS [MOCK]: Successful explicit init restores ready state
+  PASS [MOCK]: saveData commits successfully after restored ready state
+  PASS [MOCK]: Failure after success sets degraded status
+  PASS [MOCK]: saveData rejected correctly after subsequent degraded state
+[RESULT] __tests__/store-v3-degraded-save.test.js: PASS
+
+[TEST] __tests__/store-v3-validation.test.js
+  PASS [MOCK]: initStore correctly resolves after tx.oncomplete and handles concurrency safely
+  PASS [MOCK]: Import conflict handles Object URL failure and preserves message draft state
+  PASS [MOCK]: Schema validation correctly rejects empty jobs and normalizes goals.history
+  PASS [MOCK]: Legacy localStorage upgrade populates db correctly
+[RESULT] __tests__/store-v3-validation.test.js: PASS
+
+[TEST] __tests__/store-v4-lifecycle.test.js
+  PASS [MOCK]: initStore correctly manages BroadcastChannel lifecycle across repeated calls
+  PASS [MOCK]: Failure correctly degrades store
+  PASS [MOCK]: Failed listener replacement correctly closed predecessor without orphaning
+[RESULT] __tests__/store-v4-lifecycle.test.js: PASS
+
+[TEST] __tests__/store-v4-notification.test.js
+  PASS [MOCK]: saveData promise resolves successfully (committed) despite notification failure
+  PASS [MOCK]: Committed data stays intact
+[RESULT] __tests__/store-v4-notification.test.js: PASS
+
+[TEST] __tests__/store-v5.test.js
+  PASS [MOCK]: Legacy Upgrade normalizes Place IDs correctly before saving
+  PASS [MOCK]: Import gracefully settles callback on format error
+  PASS [MOCK]: Import gracefully settles callback on user cancellation
+  PASS [MOCK]: Import gracefully settles callback on CAS conflict abort
+  PASS [MOCK]: Import cancel fires onComplete exactly once
+  PASS [MOCK]: Malformed legacy payload recovered to valid shape before durable write
+  PASS [MOCK]: Malformed legacy recovery records all repaired fields and preserves original bytes
+  PASS [MOCK]: Reader error fires onComplete exactly once
+  PASS [MOCK]: Reader abort fires onComplete exactly once
+[RESULT] __tests__/store-v5.test.js: PASS
+
+[TEST] __tests__/store_validation.test.js
+  PASS: Test A1: Rejects schemaVersion 999
+  PASS: Test A2: Rejects wrong app identifier
+  PASS: Test A3: Rejects null arrays
+  PASS: Test B: saveData requires WeakMap tracked snapshot
+  PASS: Test C: CAS mismatch throws conflict
+  PASS: Test C2: Unsaved draft preserved and exportable
+  PASS: Test D: Export reads IDB successfully
+[RESULT] __tests__/store_validation.test.js: PASS
+
+Summary: 11/11 test file(s) passed, 0 failed.
+
+Browser suites: 5 file(s)
+
+[SPEC] qa/v4/acceptance.spec.mjs
+  FROZEN-SOURCE SHAPE CHECK ONLY — base 29d43ff04a6abb257b5046c85f2fcba6f0bb679d; STORE patch 8b02dce00f4cd5b3b10bcce05e74f82bec98e0b5382e3e9188ea65d2e5198193; store.js b600175c04e7100e8bb7bb6a8e5cd899f5eb0cb6663cd16f85ad64c22074be11; MAIN patch 00b6939d970fb9b46ff8d6c3effc04a53b658562dd97ee721b3428dc13c3e5c1; HABITS patch 67d9ab66e4527fcfd30c6cb55009f4e3817f0e3d678e989352c79844ae265431; PROGRESS patch ee317ac5b5037f600d3750a1308caae37c803cf4cfcf13a35b78868b70fb8bcb; FEEDS repaired source unavailable. NOT INTEGRATED ACCEPTANCE.
+  NOT RUN TEST-UI-001 [REAL-BROWSER] Missing precondition: assembled frozen review commit + local server + isolated browser profile/origin + browser runner; fixture shape precheck passed; Today, Goals and Updates startup remain unproven until the browser case runs
+  PASS    TEST-STORE-001 [MOCK harness] fault injection throws; degraded gate rejects save with zero harness writes; committed fixture data stays readable
+  PASS    TEST-STORE-002 [MOCK harness] successful explicit recovery permits exactly one harness save; cloned reload preserves revision and record shapes
+  NOT RUN TEST-STORE-003 [REAL-BROWSER] Missing precondition: two real browser tabs on one isolated origin with native BroadcastChannel and real IndexedDB; CountingBroadcastChannel double is available for harness counts (active=0 before browser work); it is not a substitute for native two-tab evidence
+  PASS    TEST-STORE-004 [MOCK harness] save promise settles as committed with a separate notification error; exactly one harness write remains
+  NOT RUN TEST-FEEDS-001 [REAL-BROWSER] Missing precondition: repaired feeds source + persisted IndexedDB cache/generation + module reload + browser or module acceptance runner; persisted generation shape precheck passed; reload behavior remains unproven
+  NOT RUN TEST-FEEDS-002 [REAL-BROWSER] Missing precondition: two real tabs, repaired feeds source, tracked store snapshots, and a paused refresh barrier released after the second tab commits; feed-responses.mjs supplies the deterministic barrier; cross-tab production behavior remains unproven
+  PASS    TEST-FEEDS-003 [MOCK harness] barrier-controlled newer response wins over a later-released older response; oversize, malformed and timeout primitives are detectable
+  PASS    TEST-HABITS-001 [MOCK/SHAPE harness] completedAt object validates; create/remove works on the real occurrence shape; legacy true remains completed; cloned reload preserves the day entry
+  NOT RUN TEST-UI-002 [REAL-BROWSER] Missing precondition: assembled app in a real browser with keyboard control, import/export controls, 320x568 viewport, 375px viewport and reduced-motion setting; subcases not run: TEST-UI-002a form rejection retains input; TEST-UI-002b retry; TEST-UI-002c import cancel; TEST-UI-002d import reject; TEST-UI-002e import repeat selection; TEST-UI-002f export readback; TEST-UI-002g keyboard focus; TEST-UI-002h 320x568 layout; TEST-UI-002i 375px layout; TEST-UI-002j reduced motion
+  Summary: PASS 5; NOT RUN 5; FAIL 0
+  Boundary rule: PASS here means harness/shape only unless the group boundary says REAL-BROWSER and the case actually ran.
+[SPEC RESULT] qa/v4/acceptance.spec.mjs: exit 0
+
+[SPEC] qa/v4/feeds-browser.spec.mjs
+  REAL-BROWSER — tree under test: <tree>; js/store.js SHA-256 aa505bf99d91a8ce6e86e37d0618bf58f8d82bdfe7f7dc49f44a466651bec719; js/feeds.js SHA-256 b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88. Hashes are read from the tested tree at run time. No source is pinned or substituted.
+  PASS    TEST-FEEDS-001 [REAL-BROWSER] cache persisted in IndexedDB; generation 9314be7c stable across reload; valid refresh preserved item 1 and added item 2
+  PASS    TEST-FEEDS-002 [REAL-BROWSER] paused refresh committed after tab B edit; refreshed item and tab B manual entry both present
+  PASS    TEST-FEEDS-003 [REAL-BROWSER] reversed order: newer items kept, older response blocked by token; deleted source: late response committed nothing; oversize, malformed and HTTP 500 each preserved the last valid cache
+  PASS    V5-FEEDS-01 [REAL-BROWSER] stalled body settled at 15867ms with timeout error; last valid cache preserved
+  PASS    V5-FEEDS-02 [REAL-BROWSER] category edit during fetch blocked the stale commit; no items committed
+  PASS    V5-FEEDS-03 [REAL-BROWSER] save path rejected or dropped the javascript: URL (save resolved); blank and https records preserved; legacy link rendered inert (anchor hrefs: [])
+  Summary: PASS 6; NOT RUN 0; FAIL 0
+  Boundary rule: PASS here means the case ran in a real browser against the tree named in the source label.
+  Machine results written: <tree>/qa/v4/browser-results.json
+[SPEC RESULT] qa/v4/feeds-browser.spec.mjs: exit 0
+
+[SPEC] qa/v4/jobs-browser.spec.mjs
+  REAL-BROWSER — tree under test: <tree>; js/store.js SHA-256 aa505bf99d91a8ce6e86e37d0618bf58f8d82bdfe7f7dc49f44a466651bec719; js/feeds.js SHA-256 b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88; js/main.js SHA-256 28136737e45b57bdd669fd9739464b391b5c4a52bc1b625b5aab0a71a211e325. Hashes are read from the tested tree at run time. No source is pinned or substituted.
+  PASS    V8-JOBS-OTHER [REAL-BROWSER] clicked the real chart Other bar at canvas fraction 0.5,0.86; filter value 'other' with label 'Other'; list showed ExplicitOtherCo + PendingCo + BlankCo (3); Other+Toronto narrowed to 2; All reset restored 4; zero page errors
+  Summary: PASS 1; NOT RUN 0; FAIL 0
+  Boundary rule: PASS here means the case ran in a real browser against the tree named in the source label.
+  Machine results written: <tree>/qa/v4/browser-results.json
+[SPEC RESULT] qa/v4/jobs-browser.spec.mjs: exit 0
+
+[SPEC] qa/v4/storage-browser.spec.mjs
+  Tree under test: <tree>
+  js/store.js SHA-256: aa505bf99d91a8ce6e86e37d0618bf58f8d82bdfe7f7dc49f44a466651bec719
+  js/feeds.js SHA-256: b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88
+  Local temporary origin: http://127.0.0.1:35967
+  Browser: Firefox 157.0
+  PASS    TEST-STORE-001 [REAL-BROWSER] poisoned higher-version DB forces degraded init; failed re-init stays degraded; saves reject with the degraded error; getData reads and exportData downloads
+  PASS    TEST-STORE-002 [REAL-BROWSER] after fault removal an explicit initStore restores ready; one save commits (revision 1 -> 2); a real reload preserves the record
+  PASS    TEST-STORE-003 [REAL-BROWSER] three initStore calls construct 3 channels, close 2, leave 1 active; a save in tab A becomes visible in tab B through the native BroadcastChannel sync
+  PASS    TEST-STORE-004 [REAL-BROWSER] saveData resolves { committed: true, conflict: false } while postMessage throws; the durable record advances exactly one revision and survives reload
+  PASS    V5-STORE-01 [REAL-BROWSER] legacy null/missing place IDs are repaired by the migrator before the first durable put; the one valid ID and all records survive; malformed legacy input yields explicit recovery
+  PASS    TEST-STORE-005 [REAL-BROWSER] save over a natively deleted record rejects with Save failed, explicit re-init recovers and the next save is durable across reload; untracked input rejects; two in-flight saves settle as exactly one commit and one Conflict rejection with one durable winner
+  Summary: PASS 6; NOT RUN 0; FAIL 0
+  Boundary rule: PASS here means the case ran in a real Firefox profile against the native IndexedDB, BroadcastChannel and localStorage of the tree named in the header.
+  Machine results written: <tree>/qa/v4/browser-results.json
+[SPEC RESULT] qa/v4/storage-browser.spec.mjs: exit 0
+
+[SPEC] qa/v4/ui-browser.spec.mjs
+  UI BROWSER SPEC — tree <tree>; store.js aa505bf99d91a8ce6e86e37d0618bf58f8d82bdfe7f7dc49f44a466651bec719; feeds.js b0fe9d6b31caa11f6dbec86afae6fa38912ed7d6ff4c6f259001bd472620be88; main.js 28136737e45b57bdd669fd9739464b391b5c4a52bc1b625b5aab0a71a211e325; index.html 5bec01e69d77c79d1e63caf7d17fa11afe24a63a4bbd859bbe3dd689067b851a
+  Scratch dir: /tmp/ui-browser-qa-EyWUqA
+  Browser: firefox launched from the Playwright browser cache
+  PASS    TEST-UI-001 [REAL-BROWSER] app booted on the local origin; all 9 nav views rendered; zero uncaught page errors; zero failed module requests
+  PASS    TEST-UI-002f [REAL-BROWSER] export downloaded and parsed; exportedAt 2026-10-22T09:28:08.184Z; goals in file: QA Goal One 280370
+  PASS    V5-STORE-02 [REAL-BROWSER] conflict produced exactly one confirm, one blocked alert, and one draft download; the UI refreshed to the adopted data without a reload; stored data kept all goals
+  PASS    TEST-UI-002e [REAL-BROWSER] the same export file imported twice; each import settled with one success alert and identical resulting data
+  PASS    TEST-UI-002d [REAL-BROWSER] malformed JSON and wrong-app files each produced exactly one import-failed alert; current data unchanged; zero uncaught errors
+  PASS    TEST-UI-002c [REAL-BROWSER] dismissing the import confirm cancelled cleanly: no alert, no download, no data change, file input reset for the next selection
+  PASS    TEST-UI-002a [REAL-BROWSER] degraded save rejected with alert "Save rejected: Storage is in a degraded state."; modal stayed open; input retained verbatim; nothing was written
+  PASS    TEST-UI-002b [REAL-BROWSER] after a clean reload the same title saved successfully; modal closed; goal rendered; no alert on retry
+  PASS    TEST-UI-002g [REAL-BROWSER] keyboard opened the modal; focus started on goal-title; Tab order goal-title -> goal-notes -> goal-target -> goal-show-notes -> btn-cancel-modal -> Save; cancel returned focus to btn-create-goal
+  PASS    TEST-UI-002h [REAL-BROWSER] no horizontal overflow at 320x568; scrollWidths today 320, goals 320, settings 320
+  PASS    TEST-UI-002i [REAL-BROWSER] no horizontal overflow at 375px width; scrollWidths today 375, goals 375, settings 375
+  PASS    TEST-UI-002j [REAL-BROWSER] reduced-motion media matches; 2 stylesheet media rule(s); computed durations transition 0.00001s, animation 0.00001s
+  PASS    TEST-HABITS-001 [REAL-BROWSER] completedAt occurrence created for local day 2026-10-22, preserved across reload with the same timestamp, removed by second toggle
+  Summary: PASS 13; NOT RUN 0; FAIL 0
+  Boundary rule: PASS means the case ran in a real Firefox browser against the tree named in the header.
+  Machine results written: <tree>/qa/v4/browser-results.json
+[SPEC RESULT] qa/v4/ui-browser.spec.mjs: exit 0
+[GATE] warning: extra case ignored by the gate: TEST-STORE-005
+
+[LOCAL GATE] PASS — 25 required browser cases PASS in this run on commit 5c9fba30ddab57667bc652ea8532d64bba197614.
+This local gate pass is not release approval and is not host acceptance.

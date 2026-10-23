@@ -1,0 +1,121 @@
+{
+  "ownership": "OWNERSHIP-V4",
+  "bundle_marker": "CODEX-DASHBOARD-PHASES-V4-20261021",
+  "rule": "One writer per file. Proposed fixes to a production file go back to its owner lane; the Track C assembler copies selected files and never hand-edits owner code.",
+  "owners": {
+    "js/store.js": {
+      "owner": "Track A \u2014 STORE lane",
+      "session": "9588111654717985252",
+      "status": "lifecycle repair in flight (V4-STORE-LISTENER-LIFECYCLE)"
+    },
+    "js/feeds.js": {
+      "owner": "Track B \u2014 FEEDS replacement lane",
+      "session": "4127150129426703516",
+      "status": "replacement in flight; old session 10139058434333404787 parked reference-only"
+    },
+    "js/main.js": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle; correction patch applied"
+    },
+    "index.html": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle; correction patch applied"
+    },
+    "js/goals.js": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "js/college.js": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "js/jobs.js": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "js/maps.js": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "js/investments.js": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "js/visuals/chart-explorer.js": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "css/app.css": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "css/visual-upgrade.css": {
+      "owner": "MAIN lane",
+      "session": "15054498843384471465",
+      "status": "idle"
+    },
+    "js/habits.js": {
+      "owner": "HABITS lane",
+      "session": "13401192992339391577",
+      "status": "idle; v3 patch applied"
+    },
+    "js/visuals/progress-summary.js": {
+      "owner": "PROGRESS lane",
+      "session": "12388674487520618663",
+      "status": "idle; correction patch applied"
+    },
+    "js/visuals/charts.js": {
+      "owner": "UNASSIGNED in v4 bundle",
+      "status": "missing from assembly; needs an owner decision (historical visuals work exists outside this assembly scope)"
+    },
+    "js/visuals/deadline-timeline.js": {
+      "owner": "UNASSIGNED in v4 bundle",
+      "status": "missing from assembly; needs an owner decision"
+    },
+    "js/chart.umd.js": {
+      "owner": "UNASSIGNED in v4 bundle",
+      "status": "missing asset referenced by index.html; vendor bundle or CDN decision needed (Track E packaging input)"
+    },
+    "js/countdowns.js": {
+      "owner": "base commit (no active lane)",
+      "status": "retained from base"
+    },
+    "js/indicators.js": {
+      "owner": "base commit (no active lane)",
+      "status": "retained from base"
+    },
+    "LICENSE": {
+      "owner": "repository (immutable)",
+      "status": "byte-identical to base"
+    },
+    "docs/review/SOURCE-MANIFEST-V4.json": {
+      "owner": "Track C assembler",
+      "status": "this assembly"
+    },
+    "docs/review/OWNERSHIP-V4.json": {
+      "owner": "Track C assembler",
+      "status": "this assembly"
+    },
+    "docs/review/INTEGRATION-PLAN-V4.md": {
+      "owner": "Track C assembler",
+      "status": "this assembly"
+    },
+    "qa/v4/*": {
+      "owner": "Track D \u2014 QA worker",
+      "status": "parallel track; no production writes"
+    },
+    "README.md, PROJECT-STATUS.md, docs/CONTEXT.md, docs/TOOLING.md, docs/COLLABORATION.md, docs/ACCEPTANCE.md, scripts/run-review-tests.mjs, scripts/package-static-assets.mjs, .github/workflows/review-tests.yml, docs/review/DEPLOYMENT-ASSETS-V4.txt": {
+      "owner": "Track E \u2014 tooling/docs worker",
+      "status": "parallel track; no production JS/HTML/CSS writes"
+    }
+  }
+}

@@ -1,0 +1,144 @@
+import { getData, saveData } from './store.js';
+
+function getInvestmentsData() {
+    const data = getData();
+    if (!data.investments) {
+        data.investments = [];
+    }
+    return data;
+}
+
+export function getInvestments() {
+    const data = getInvestmentsData();
+    return JSON.parse(JSON.stringify(data.investments));
+}
+
+function parseNumber(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    const num = Number(val);
+    return isFinite(num) ? num : 0;
+}
+
+export async function saveInvestment(invData) {
+    const doSave = async () => {
+        const data = getInvestmentsData();
+        const investments = data.investments;
+        
+        if (invData.id) {
+            const existingIndex = investments.findIndex(i => i.id === invData.id);
+            if (existingIndex === -1) {
+                throw new Error("Conflict: Investment not found for update.");
+            }
+            investments[existingIndex] = {
+                ...investments[existingIndex],
+                ...invData,
+                updatedAt: new Date().toISOString()
+            };
+        } else {
+            const newInv = {
+                id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                ticker: invData.ticker || '',
+                entry: parseNumber(invData.entry),
+                current: parseNumber(invData.current),
+                notes: invData.notes || '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            investments.push(newInv);
+        }
+        return saveData(data);
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+        return await navigator.locks.request('dashboard_data_lock', doSave);
+    } else {
+        return await doSave();
+    }
+}
+
+export async function deleteInvestment(id) {
+    const doDelete = async () => {
+        const data = getInvestmentsData();
+        const investments = data.investments;
+        const existingIndex = investments.findIndex(i => i.id === id);
+        
+        if (existingIndex === -1) {
+            throw new Error("Conflict: Investment not found for deletion.");
+        }
+        
+        investments.splice(existingIndex, 1);
+        return saveData(data);
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+        return await navigator.locks.request('dashboard_data_lock', doDelete);
+    } else {
+        return await doDelete();
+    }
+}
+
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+}
+
+export function createInvestmentCard(investment, onEdit, onDelete) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = investment.id;
+    
+    // Deep/shallow copy for event listeners to avoid mutating the original reference
+    const inv = { ...investment };
+
+    const ticker = escapeHtml(inv.ticker || 'Unknown');
+    const notes = escapeHtml(inv.notes || '');
+    
+    const entry = parseNumber(inv.entry);
+    const current = parseNumber(inv.current);
+
+    card.innerHTML = `
+        <div class="card-header card-header-center">
+            <div class="card-title">${ticker}</div>
+            <div class="meta-text">Manual Watchlist</div>
+        </div>
+        <div class="card-body">
+            <div class="price-row">
+                <div>
+                    <div class="meta-text">Entry Price</div>
+                    <div>$${entry.toFixed(2)}</div>
+                </div>
+                <div>
+                    <div class="meta-text">Current Price</div>
+                    <div>$${current.toFixed(2)}</div>
+                </div>
+            </div>
+            ${notes ? `<div class="card-notes">${notes}</div>` : ''}
+        </div>
+        <div class="card-footer card-footer-end">
+            <div class="card-actions">
+                <button class="icon-btn edit-btn">Edit</button>
+                <button class="icon-btn delete-btn">Delete</button>
+            </div>
+        </div>
+    `;
+
+    const editBtn = card.querySelector('.edit-btn');
+    const deleteBtn = card.querySelector('.delete-btn');
+
+    editBtn.addEventListener('click', () => onEdit(inv));
+    editBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(inv); }
+    });
+
+    deleteBtn.addEventListener('click', () => onDelete(inv.id));
+    deleteBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDelete(inv.id); }
+    });
+
+    return card;
+}
