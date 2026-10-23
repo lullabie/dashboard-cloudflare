@@ -396,16 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Rendering Orchestration ---
-    function refreshUI() {
-        // Countdowns
-        renderCountdowns('countdowns-container');
-        
-        // Radar
-        renderRadar('radar-container');
-        
-        // Indicators (async fire-and-forget)
-        fetchAndRenderIndicators('indicators-container');
-        
+    function refreshGoalsUI() {
         // Goals Data
         const allGoals = getGoals();
         const activeGoals = allGoals.filter(g => g.status === 'active');
@@ -443,7 +434,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 archivedGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
             });
         }
-        
+    }
+
+    function refreshMapsUI() {
         // Maps View
         const allPlaces = getPlaces();
         placesList.innerHTML = '';
@@ -463,7 +456,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapContainer.innerHTML = `<iframe src="${embedUrl}" allowfullscreen></iframe>`;
             }
         }
-        
+    }
+
+    function refreshJobsUI() {
         // Jobs View
         const allJobs = getJobs() || [];
         const activeStatusFilter = jobStatusFilter.value;
@@ -478,7 +473,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             filteredJobs.forEach(job => { jobsContainer.appendChild(createJobCard(job, handleEditJob, handleDeleteJob)); });
         }
+    }
 
+    function refreshCollegeUI() {
         // College View
         const collegeData = getCollegeData();
         ['timetable', 'assignments', 'exams', 'fees'].forEach(type => {
@@ -498,6 +495,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         });
+    }
+
+    function refreshUI() {
+        // Countdowns
+        renderCountdowns('countdowns-container');
+
+        // Radar
+        renderRadar('radar-container');
+
+        // Indicators (async fire-and-forget)
+        fetchAndRenderIndicators('indicators-container');
+
+        refreshGoalsUI();
+        refreshMapsUI();
+        refreshJobsUI();
+        refreshCollegeUI();
     }
 
     // Initial render

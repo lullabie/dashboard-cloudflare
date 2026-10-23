@@ -1,0 +1,224 @@
+<<<<<<< SEARCH
+    // --- Rendering Orchestration ---
+    function refreshUI() {
+        // Countdowns
+        renderCountdowns('countdowns-container');
+
+        // Radar
+        renderRadar('radar-container');
+
+        // Indicators (async fire-and-forget)
+        fetchAndRenderIndicators('indicators-container');
+
+        // Goals Data
+        const allGoals = getGoals();
+        const activeGoals = allGoals.filter(g => g.status === 'active');
+        const archivedGoals = allGoals.filter(g => g.status === 'archived');
+
+        // Today View Container
+        const todayGoalsContainer = document.getElementById('today-goals-container');
+        todayGoalsContainer.innerHTML = '';
+        if (activeGoals.length === 0) {
+            todayGoalsContainer.innerHTML = '<div class="empty-state">No active goals for today. Enjoy your day!</div>';
+        } else {
+            activeGoals.forEach(g => {
+                todayGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
+            });
+        }
+
+        // Goals View - Active Container
+        const activeGoalsContainer = document.getElementById('active-goals-container');
+        activeGoalsContainer.innerHTML = '';
+        if (activeGoals.length === 0) {
+            activeGoalsContainer.innerHTML = '<div class="empty-state">You have no active goals.</div>';
+        } else {
+            activeGoals.forEach(g => {
+                activeGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
+            });
+        }
+
+        // Goals View - Archived Container
+        const archivedGoalsContainer = document.getElementById('archived-goals-container');
+        archivedGoalsContainer.innerHTML = '';
+        if (archivedGoals.length === 0) {
+            archivedGoalsContainer.innerHTML = '<div class="empty-state">Archive is empty.</div>';
+        } else {
+            archivedGoals.forEach(g => {
+                archivedGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
+            });
+        }
+
+        // Maps View
+        const allPlaces = getPlaces();
+        placesList.innerHTML = '';
+
+        if (allPlaces.length === 0) {
+            mapContainer.innerHTML = '<div class="empty-state">No places added yet. Add a place to see it on the map.</div>';
+        } else {
+            const activePlace = allPlaces.find(p => p.id === activePlaceId) || null;
+
+            allPlaces.forEach(p => {
+                const isActive = p.id === activePlaceId;
+                placesList.appendChild(createPlaceElement(p, handleEditPlace, handleDeletePlace, handleClickPlace, isActive));
+            });
+
+            const embedUrl = getMapEmbedUrl(allPlaces, activePlace);
+            if (embedUrl) {
+                mapContainer.innerHTML = `<iframe src="${embedUrl}" allowfullscreen></iframe>`;
+            }
+        }
+
+        // Jobs View
+        const allJobs = getJobs() || [];
+        const activeStatusFilter = jobStatusFilter.value;
+        const activeLocationFilter = jobLocationFilter.value;
+        let filteredJobs = allJobs;
+        if (activeStatusFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.status === activeStatusFilter); }
+        if (activeLocationFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.location === activeLocationFilter); }
+        filteredJobs.sort((a, b) => new Date(b.date) - new Date(a.date));
+        jobsContainer.innerHTML = '';
+        if (filteredJobs.length === 0) {
+            jobsContainer.innerHTML = '<div class="empty-state">No jobs found matching the criteria.</div>';
+        } else {
+            filteredJobs.forEach(job => { jobsContainer.appendChild(createJobCard(job, handleEditJob, handleDeleteJob)); });
+        }
+
+        // College View
+        const collegeData = getCollegeData();
+        ['timetable', 'assignments', 'exams', 'fees'].forEach(type => {
+            const container = document.getElementById(`college-${type}-container`);
+            if (!container) return;
+
+            container.innerHTML = '';
+            const items = collegeData[type] || [];
+
+            if (items.length === 0) {
+                container.innerHTML = `<div class="empty-state">No ${type} added yet.</div>`;
+            } else {
+                // Sort by date mostly
+                items.sort((a, b) => new Date(a.date) - new Date(b.date));
+                items.forEach(item => {
+                    container.appendChild(createCollegeCard(item, type, handleEditCollege, handleDeleteCollege));
+                });
+            }
+        });
+    }
+=======
+    // --- Rendering Orchestration ---
+    function refreshGoalsUI() {
+        // Goals Data
+        const allGoals = getGoals();
+        const activeGoals = allGoals.filter(g => g.status === 'active');
+        const archivedGoals = allGoals.filter(g => g.status === 'archived');
+
+        // Today View Container
+        const todayGoalsContainer = document.getElementById('today-goals-container');
+        todayGoalsContainer.innerHTML = '';
+        if (activeGoals.length === 0) {
+            todayGoalsContainer.innerHTML = '<div class="empty-state">No active goals for today. Enjoy your day!</div>';
+        } else {
+            activeGoals.forEach(g => {
+                todayGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
+            });
+        }
+
+        // Goals View - Active Container
+        const activeGoalsContainer = document.getElementById('active-goals-container');
+        activeGoalsContainer.innerHTML = '';
+        if (activeGoals.length === 0) {
+            activeGoalsContainer.innerHTML = '<div class="empty-state">You have no active goals.</div>';
+        } else {
+            activeGoals.forEach(g => {
+                activeGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
+            });
+        }
+
+        // Goals View - Archived Container
+        const archivedGoalsContainer = document.getElementById('archived-goals-container');
+        archivedGoalsContainer.innerHTML = '';
+        if (archivedGoals.length === 0) {
+            archivedGoalsContainer.innerHTML = '<div class="empty-state">Archive is empty.</div>';
+        } else {
+            archivedGoals.forEach(g => {
+                archivedGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
+            });
+        }
+    }
+
+    function refreshMapsUI() {
+        // Maps View
+        const allPlaces = getPlaces();
+        placesList.innerHTML = '';
+
+        if (allPlaces.length === 0) {
+            mapContainer.innerHTML = '<div class="empty-state">No places added yet. Add a place to see it on the map.</div>';
+        } else {
+            const activePlace = allPlaces.find(p => p.id === activePlaceId) || null;
+
+            allPlaces.forEach(p => {
+                const isActive = p.id === activePlaceId;
+                placesList.appendChild(createPlaceElement(p, handleEditPlace, handleDeletePlace, handleClickPlace, isActive));
+            });
+
+            const embedUrl = getMapEmbedUrl(allPlaces, activePlace);
+            if (embedUrl) {
+                mapContainer.innerHTML = `<iframe src="${embedUrl}" allowfullscreen></iframe>`;
+            }
+        }
+    }
+
+    function refreshJobsUI() {
+        // Jobs View
+        const allJobs = getJobs() || [];
+        const activeStatusFilter = jobStatusFilter.value;
+        const activeLocationFilter = jobLocationFilter.value;
+        let filteredJobs = allJobs;
+        if (activeStatusFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.status === activeStatusFilter); }
+        if (activeLocationFilter !== 'all') { filteredJobs = filteredJobs.filter(j => j.location === activeLocationFilter); }
+        filteredJobs.sort((a, b) => new Date(b.date) - new Date(a.date));
+        jobsContainer.innerHTML = '';
+        if (filteredJobs.length === 0) {
+            jobsContainer.innerHTML = '<div class="empty-state">No jobs found matching the criteria.</div>';
+        } else {
+            filteredJobs.forEach(job => { jobsContainer.appendChild(createJobCard(job, handleEditJob, handleDeleteJob)); });
+        }
+    }
+
+    function refreshCollegeUI() {
+        // College View
+        const collegeData = getCollegeData();
+        ['timetable', 'assignments', 'exams', 'fees'].forEach(type => {
+            const container = document.getElementById(`college-${type}-container`);
+            if (!container) return;
+
+            container.innerHTML = '';
+            const items = collegeData[type] || [];
+
+            if (items.length === 0) {
+                container.innerHTML = `<div class="empty-state">No ${type} added yet.</div>`;
+            } else {
+                // Sort by date mostly
+                items.sort((a, b) => new Date(a.date) - new Date(b.date));
+                items.forEach(item => {
+                    container.appendChild(createCollegeCard(item, type, handleEditCollege, handleDeleteCollege));
+                });
+            }
+        });
+    }
+
+    function refreshUI() {
+        // Countdowns
+        renderCountdowns('countdowns-container');
+
+        // Radar
+        renderRadar('radar-container');
+
+        // Indicators (async fire-and-forget)
+        fetchAndRenderIndicators('indicators-container');
+
+        refreshGoalsUI();
+        refreshMapsUI();
+        refreshJobsUI();
+        refreshCollegeUI();
+    }
+>>>>>>> REPLACE
