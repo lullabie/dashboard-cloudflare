@@ -72,21 +72,51 @@ function createCountdownTile(deadline) {
     
     const card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `
-        <div class="card-header">
-            <div class="card-title">${deadline.title}</div>
-            <span class="badge ${colorClass}">${statusText}</span>
-        </div>
-        <div class="card-body">
-            <div class="countdown-label">
-                <span>Due: ${deadline.date}</span>
-                <span>Zone: ${TIMEZONE}</span>
-            </div>
-            <div class="progress-bar-container">
-                <div class="progress-bar" style="width: ${progressPercent}%; background-color: ${daysLeft < 0 ? 'var(--danger-color)' : 'var(--accent-color)'}"></div>
-            </div>
-        </div>
-    `;
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'card-title';
+    titleDiv.textContent = deadline.title;
+
+    const badgeSpan = document.createElement('span');
+    badgeSpan.className = `badge ${colorClass}`;
+    badgeSpan.textContent = statusText;
+
+    header.appendChild(titleDiv);
+    header.appendChild(badgeSpan);
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'countdown-label';
+
+    const dueSpan = document.createElement('span');
+    dueSpan.textContent = `Due: ${deadline.date}`;
+
+    const zoneSpan = document.createElement('span');
+    zoneSpan.textContent = `Zone: ${TIMEZONE}`;
+
+    labelDiv.appendChild(dueSpan);
+    labelDiv.appendChild(zoneSpan);
+
+    const progressContainer = document.createElement('div');
+    progressContainer.className = 'progress-bar-container';
+
+    const progressBar = document.createElement('div');
+    progressBar.className = 'progress-bar';
+    progressBar.style.width = `${progressPercent}%`;
+    progressBar.style.backgroundColor = daysLeft < 0 ? 'var(--danger-color)' : 'var(--accent-color)';
+
+    progressContainer.appendChild(progressBar);
+
+    body.appendChild(labelDiv);
+    body.appendChild(progressContainer);
+
+    card.appendChild(header);
+    card.appendChild(body);
     
     return card;
 }
