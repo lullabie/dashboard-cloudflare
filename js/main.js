@@ -417,9 +417,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeGoals.length === 0) {
             todayGoalsContainer.innerHTML = '<div class="empty-state">No active goals for today. Enjoy your day!</div>';
         } else {
+            const fragment = document.createDocumentFragment();
             activeGoals.forEach(g => {
-                todayGoalsContainer.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
+                fragment.appendChild(createGoalCard(g, handleEdit, handleToggleArchive, handleCycleOccurrence));
             });
+            todayGoalsContainer.appendChild(fragment);
         }
         
         // Goals View - Active Container
