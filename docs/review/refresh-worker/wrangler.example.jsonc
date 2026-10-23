@@ -1,0 +1,14 @@
+{
+  // EXAMPLE ONLY — design review copy. Do not deploy from this file.
+  // No KV namespace exists yet; the id below is a placeholder, not a resource.
+  // Resource creation happens only after design review passes (M3).
+  "name": "dashboard-api",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-23",
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "<created at M3, recorded here by hand>" }
+  ]
+}
