@@ -155,6 +155,197 @@ export function calculateStreak(occurrences, todayStr) {
     return streak;
 }
 
+
+function createProgressRing(progress) {
+    const circumference = 100.5;
+    const strokeDashoffset = circumference - (progress / 100) * circumference;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+    wrapper.style.width = '40px';
+    wrapper.style.height = '40px';
+    wrapper.style.flexShrink = '0';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '40');
+    svg.setAttribute('height', '40');
+    svg.setAttribute('viewBox', '0 0 40 40');
+    svg.style.transform = 'rotate(-90deg)';
+
+    const circleBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circleBg.setAttribute('cx', '20');
+    circleBg.setAttribute('cy', '20');
+    circleBg.setAttribute('r', '16');
+    circleBg.setAttribute('fill', 'none');
+    circleBg.setAttribute('stroke', 'var(--border-color)');
+    circleBg.setAttribute('stroke-width', '4');
+
+    const circleFg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circleFg.setAttribute('cx', '20');
+    circleFg.setAttribute('cy', '20');
+    circleFg.setAttribute('r', '16');
+    circleFg.setAttribute('fill', 'none');
+    circleFg.setAttribute('stroke', 'var(--accent-color)');
+    circleFg.setAttribute('stroke-width', '4');
+    circleFg.setAttribute('stroke-dasharray', String(circumference));
+    circleFg.setAttribute('stroke-dashoffset', String(strokeDashoffset));
+    circleFg.style.transition = 'stroke-dashoffset 0.5s ease';
+
+    svg.appendChild(circleBg);
+    svg.appendChild(circleFg);
+
+    const textDiv = document.createElement('div');
+    textDiv.style.position = 'absolute';
+    textDiv.style.top = '0';
+    textDiv.style.left = '0';
+    textDiv.style.width = '100%';
+    textDiv.style.height = '100%';
+    textDiv.style.display = 'flex';
+    textDiv.style.alignItems = 'center';
+    textDiv.style.justifyContent = 'center';
+    textDiv.style.fontSize = '0.6rem';
+    textDiv.style.fontWeight = 'bold';
+    textDiv.textContent = `${progress}%`;
+
+    wrapper.appendChild(svg);
+    wrapper.appendChild(textDiv);
+
+    return wrapper;
+}
+
+function createTimeline(occurrences, todayStr) {
+    const timeline = document.createElement('div');
+    timeline.className = 'timeline';
+    timeline.style.display = 'flex';
+    timeline.style.gap = '0.25rem';
+    timeline.style.marginTop = '0.5rem';
+    timeline.style.marginBottom = '0.5rem';
+
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(todayStr + 'T12:00:00');
+        d.setDate(d.getDate() - i);
+        const dateStr = getLocalDateString(d);
+        const status = occurrences[dateStr] || 'none';
+
+        let bgColor = 'var(--surface-hover)';
+        if (status === 'done') bgColor = 'var(--accent-color)';
+        else if (status === 'missed') bgColor = 'var(--danger-color)';
+        else if (status === 'late') bgColor = '#f59e0b';
+
+        const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
+
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'timeline-day';
+        dayDiv.dataset.date = dateStr;
+        dayDiv.title = `${dayLabel}: ${status}`;
+        dayDiv.style.flex = '1';
+        dayDiv.style.height = '24px';
+        dayDiv.style.borderRadius = 'var(--radius-sm)';
+        dayDiv.style.backgroundColor = bgColor;
+        dayDiv.style.cursor = 'pointer';
+        dayDiv.style.border = '1px solid var(--border-color)';
+
+        timeline.appendChild(dayDiv);
+    }
+
+    return timeline;
+}
+
+function createCardHeader(goal, ringEl, doneDays, target) {
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    header.style.alignItems = 'center';
+
+    const flexCont = document.createElement('div');
+    flexCont.style.display = 'flex';
+    flexCont.style.gap = '1rem';
+    flexCont.style.alignItems = 'center';
+    flexCont.style.width = '100%';
+
+    flexCont.appendChild(ringEl);
+
+    const textCont = document.createElement('div');
+    textCont.style.flexGrow = '1';
+
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'card-title';
+    titleDiv.textContent = goal.title; // escapeHtml not needed, textContent handles it
+
+    const subTitleDiv = document.createElement('div');
+    subTitleDiv.style.fontSize = '0.75rem';
+    subTitleDiv.style.color = 'var(--text-secondary)';
+    subTitleDiv.textContent = `${doneDays} / ${target} done`;
+
+    textCont.appendChild(titleDiv);
+    textCont.appendChild(subTitleDiv);
+
+    flexCont.appendChild(textCont);
+    header.appendChild(flexCont);
+
+    if (goal.status === 'archived') {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.style.marginLeft = 'auto';
+        badge.textContent = 'Archived';
+        header.appendChild(badge);
+    }
+
+    return header;
+}
+
+function createCardBody(goal, streak, timelineEl) {
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const streakCont = document.createElement('div');
+    streakCont.style.display = 'flex';
+    streakCont.style.justifyContent = 'space-between';
+    streakCont.style.alignItems = 'center';
+    streakCont.style.fontSize = '0.875rem';
+
+    const streakSpan = document.createElement('span');
+    streakSpan.style.fontWeight = 'bold';
+    streakSpan.style.color = 'var(--text-primary)';
+    streakSpan.textContent = streak > 0 ? `${streak} 🔥` : '';
+
+    streakCont.appendChild(streakSpan);
+    body.appendChild(streakCont);
+
+    body.appendChild(timelineEl);
+
+    if (goal.showNotes && goal.notes) {
+        const notesDiv = document.createElement('div');
+        notesDiv.className = 'card-notes';
+        notesDiv.textContent = goal.notes;
+        body.appendChild(notesDiv);
+    }
+
+    return body;
+}
+
+function createCardFooter(goal) {
+    const footer = document.createElement('div');
+    footer.className = 'card-footer';
+    footer.style.justifyContent = 'flex-end';
+
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn edit-btn';
+    editBtn.textContent = 'Edit';
+
+    const archiveBtn = document.createElement('button');
+    archiveBtn.className = 'icon-btn archive-btn';
+    archiveBtn.textContent = goal.status === 'active' ? 'Archive' : 'Restore';
+
+    actions.appendChild(editBtn);
+    actions.appendChild(archiveBtn);
+
+    footer.appendChild(actions);
+    return footer;
+}
+
 /**
  * Creates a DOM element for a goal card
  */
@@ -172,72 +363,16 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     const todayStr = getLocalDateString(new Date());
     const streak = calculateStreak(occurrences, todayStr);
     
-    // SVG Progress Ring (Lime on Black)
-    // 2 * pi * r = 2 * Math.PI * 16 ~= 100.5
-    const circumference = 100.5;
-    const strokeDashoffset = circumference - (progress / 100) * circumference;
+    const ringEl = createProgressRing(progress);
+    const timelineEl = createTimeline(occurrences, todayStr);
     
-    const ringHtml = `
-        <div style="position: relative; width: 40px; height: 40px; flex-shrink: 0;">
-            <svg width="40" height="40" viewBox="0 0 40 40" style="transform: rotate(-90deg);">
-                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--border-color)" stroke-width="4"></circle>
-                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--accent-color)" stroke-width="4" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" style="transition: stroke-dashoffset 0.5s ease;"></circle>
-            </svg>
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold;">
-                ${progress}%
-            </div>
-        </div>
-    `;
+    const header = createCardHeader(goal, ringEl, doneDays, target);
+    const body = createCardBody(goal, streak, timelineEl);
+    const footer = createCardFooter(goal);
 
-    // History Timeline (last 7 days)
-    let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date(todayStr + 'T12:00:00');
-        d.setDate(d.getDate() - i);
-        const dateStr = getLocalDateString(d);
-        const status = occurrences[dateStr] || 'none';
-        
-        let bgColor = 'var(--surface-hover)'; // default 'none'
-        if (status === 'done') bgColor = 'var(--accent-color)';
-        else if (status === 'missed') bgColor = 'var(--danger-color)';
-        else if (status === 'late') bgColor = '#f59e0b'; // amber
-        
-        // Tooltip using title attribute for now
-        const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
-        timelineHtml += `
-            <div class="timeline-day" data-date="${dateStr}" title="${dayLabel}: ${status}" 
-                 style="flex: 1; height: 24px; border-radius: var(--radius-sm); background-color: ${bgColor}; cursor: pointer; border: 1px solid var(--border-color);">
-            </div>
-        `;
-    }
-    timelineHtml += '</div>';
-
-    // HTML Construction
-    card.innerHTML = `
-        <div class="card-header" style="align-items: center;">
-            <div style="display: flex; gap: 1rem; align-items: center; width: 100%;">
-                ${ringHtml}
-                <div style="flex-grow: 1;">
-                    <div class="card-title">${escapeHtml(goal.title)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${doneDays} / ${target} done</div>
-                </div>
-            </div>
-            ${goal.status === 'archived' ? '<span class="badge" style="margin-left: auto;">Archived</span>' : ''}
-        </div>
-        <div class="card-body">
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
-                <span style="font-weight: bold; color: var(--text-primary);">${streak > 0 ? streak + ' 🔥' : ''}</span>
-            </div>
-            ${timelineHtml}
-            ${goal.showNotes && goal.notes ? `<div class="card-notes">${escapeHtml(goal.notes)}</div>` : ''}
-        </div>
-        <div class="card-footer" style="justify-content: flex-end;">
-            <div class="card-actions">
-                <button class="icon-btn edit-btn">Edit</button>
-                <button class="icon-btn archive-btn">${goal.status === 'active' ? 'Archive' : 'Restore'}</button>
-            </div>
-        </div>
-    `;
+    card.appendChild(header);
+    card.appendChild(body);
+    card.appendChild(footer);
 
     // Event Listeners
     if (goal.status === 'active') {
