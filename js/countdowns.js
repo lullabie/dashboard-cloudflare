@@ -128,13 +128,28 @@ function createRadarRow(deadline) {
     row.style.justifyContent = 'space-between';
     row.style.alignItems = 'center';
     
-    row.innerHTML = `
-        <div style="display: flex; flex-direction: column;">
-            <span style="font-weight: 600;">${deadline.title}</span>
-            <span style="font-size: 0.75rem; color: var(--text-secondary);">Due: ${deadline.date}</span>
-        </div>
-        <span class="badge ${colorClass}">${statusText}</span>
-    `;
+    const leftCol = document.createElement('div');
+    leftCol.style.display = 'flex';
+    leftCol.style.flexDirection = 'column';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.style.fontWeight = '600';
+    titleSpan.textContent = deadline.title;
+
+    const dateSpan = document.createElement('span');
+    dateSpan.style.fontSize = '0.75rem';
+    dateSpan.style.color = 'var(--text-secondary)';
+    dateSpan.textContent = `Due: ${deadline.date}`;
+
+    leftCol.appendChild(titleSpan);
+    leftCol.appendChild(dateSpan);
+
+    const badgeSpan = document.createElement('span');
+    badgeSpan.className = `badge ${colorClass}`;
+    badgeSpan.textContent = statusText;
+
+    row.appendChild(leftCol);
+    row.appendChild(badgeSpan);
     
     return { element: row, daysLeft: daysLeft, isOverdue: isOverdue };
 }
