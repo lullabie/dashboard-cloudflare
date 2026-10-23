@@ -190,7 +190,7 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
     `;
 
     // History Timeline (last 7 days)
-    let timelineHtml = '<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">';
+    const timelineHtmlParts = ['<div class="timeline" style="display: flex; gap: 0.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">'];
     for (let i = 6; i >= 0; i--) {
         const d = new Date(todayStr + 'T12:00:00');
         d.setDate(d.getDate() - i);
@@ -204,13 +204,14 @@ export function createGoalCard(goal, onEdit, onToggleArchive, onCycleOccurrence)
         
         // Tooltip using title attribute for now
         const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
-        timelineHtml += `
+        timelineHtmlParts.push(`
             <div class="timeline-day" data-date="${dateStr}" title="${dayLabel}: ${status}" 
                  style="flex: 1; height: 24px; border-radius: var(--radius-sm); background-color: ${bgColor}; cursor: pointer; border: 1px solid var(--border-color);">
             </div>
-        `;
+        `);
     }
-    timelineHtml += '</div>';
+    timelineHtmlParts.push('</div>');
+    let timelineHtml = timelineHtmlParts.join('');
 
     // HTML Construction
     card.innerHTML = `
