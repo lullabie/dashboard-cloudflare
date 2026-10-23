@@ -408,8 +408,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Goals Data
         const allGoals = getGoals();
-        const activeGoals = allGoals.filter(g => g.status === 'active');
-        const archivedGoals = allGoals.filter(g => g.status === 'archived');
+        const activeGoals = [];
+        const archivedGoals = [];
+
+        for (const g of allGoals) {
+            if (g.status === 'active') {
+                activeGoals.push(g);
+            } else if (g.status === 'archived') {
+                archivedGoals.push(g);
+            }
+        }
         
         // Today View Container
         const todayGoalsContainer = document.getElementById('today-goals-container');
